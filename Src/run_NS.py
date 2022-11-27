@@ -84,7 +84,8 @@ class Solver:
 
             #self.agent.update(state, action, extra_info, reward, new_state, done)
             ## update the policy ##
-            
+            for g in range(self.gradient_step) :
+                self.agent.update_policy_MBPOstyle(self.model.realTrajectory_memory.sample())
 
 
 

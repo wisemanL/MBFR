@@ -48,6 +48,14 @@ class ProOLS(Agent):
         if done and self.counter % self.config.delta == 0:
             self.optimize()
 
+    def update_policy_MBPOstyple(self,):
+        if not  self.memory.size >= self.reward_function_reference_lag :
+            return
+        ## sample from the sythetic trajectory to update the policy
+
+
+
+
     def optimize(self):
         if self.memory.size <= self.config.fourier_k:
             # If number of rows is less than number of features (columns), it wont have full column rank.
