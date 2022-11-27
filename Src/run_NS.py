@@ -73,22 +73,21 @@ class Solver:
             steps += step
             rm += total_r
 
-            ## rollout based on the model
-            for episode2 in range(start_ep,self.config.max_episodes_syntheticTrajectory) :
-                state2 = self.model.realTrajectory_memory.get_random_state_in_list()
-                for p in range(self.config.reward_function_reference_lag,self.config.reward_function_reference_lag+self.config.reward_function_predict_lag) :
-                    action2,_,_ = self.agent.get_action(state2)
-                    new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,p)
-                    state2_discrete = self.model.convert_cState_to_dState(state2)
-                    self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob)
 
-            #self.agent.update(state, action, extra_info, reward, new_state, done)
-            ## update the policy ##
-            for g in range(self.gradient_step) :
-                self.agent.update_policy_MBPOstyle(self.model.realTrajectory_memory.sample())
+            if episode1 >= self.config.reward_function_reference_lag :
+                ## rollout based on the model
+                for episode2 in range(start_ep,self.config.max_episodes_syntheticTrajectory) :
+                    state2 = self.model.realTrajectory_memory.get_random_state_in_list()
+                    for h in range(self.config.max_step_syntheticTrajectory) :
+                        action2,_,_ = self.agent.get_action(state2)
+                        new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,-1)
+                        state2_discrete = self.model.convert_cState_to_dState(state2)
+                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob)
 
-
-
+                #self.agent.update(state, action, extra_info, reward, new_state, done)
+                ## update the policy ##
+                for g in range(self.config.gradient_step) :
+                    self.agent.update_policy_MBPOstyle()
 
             if episode1%ckpt == 0 or episode1 == self.config.max_episodes-1:
                 rm_history.append(rm)

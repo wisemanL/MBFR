@@ -57,6 +57,16 @@ class Logger(object):
             fsync(self.log.fileno())
 
 
+def kl_divergence(p,q) :
+    """
+    p : size of [bacth,n_action]
+    q : size of [batch,n_action]
+    """
+    assert p.shape == q.shape
+
+    return torch.mean(torch.sum(p*torch.log2(torch.div(p,q)),dim=1),dim=0)
+
+
 
 def save_plots(rewards, config, name='rewards'):
     np.save(config.paths['results'] + name, rewards)
@@ -184,8 +194,6 @@ def weight_init(m):
         m.bias.data.zero_()
 
 
-
-
 def save_training_checkpoint(state, is_best, episode_count):
     """
     Saves the models, with all training parameters intact
@@ -222,13 +230,12 @@ def search(dir, name, exact=False):
 def dynamic_load(dir, name, load_class=False):
     try:
         abs_path = search(dir, name).split('/')[1:]
-        pos = abs_path.index('MBFR_OptFutureBased')
+        pos = abs_path.index('MBFR')
         module_path = '.'.join([str(item) for item in abs_path[pos + 1:]])
         print(module_path)
         print("Module path: ", module_path, name)
         if load_class:
             obj = getattr(importlib.import_module(module_path), name)
-            print(1)
         else:
             obj = importlib.import_module(module_path)
         print("Dynamically loaded from: ", obj)
@@ -280,7 +287,12 @@ class SARS_Buffer :
 
         self.current_pos = 0
         self.buffer_size = buffer_size
+        self.valid_length_for_sampling = 0
         self.howManyRefreshBuffer = 0
+
+    @property
+    def size(self):
+        return self.valid_length_for_sampling
 
     def add(self,s,a,r,s_next):
         if self.current_pos > self.buffer_size :
@@ -293,6 +305,13 @@ class SARS_Buffer :
         self.s_next[self.current_pos] = torch.tensor(s_next,dtype=self.stype)
 
         self.current_pos += 1
+        if self.valid_length_for_sampling < self.buffer_size :
+            self.valid_length_for_sampling +=1
+
+    def sample(self,batch_size):
+        num_batch_size = min(batch_size, self.valid_length_for_sampling)
+        random_index = np.random.choice(self.valid_length_for_sampling, num_batch_size)
+        return self.s[random_index] , self.a[random_index]
 
 class Q_table :
     def __init__(self,config,n_action):

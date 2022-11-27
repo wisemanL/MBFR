@@ -83,8 +83,10 @@ class Parser(object):
         parser.add_argument("--reward_function_predict_lag", default=1, type=int)
         parser.add_argument("--alpha_Q", default=0.99, help="Q update step size", type=float)
         parser.add_argument("--max_episodes_realTrajectory", default=1000, help="Number of episodes to roll out real trajectory", type=int)
-        parser.add_argument("--max_episodes_syntheticTrajectory", default=100,help="Number of episodes to roll out synthetic trajectory", type=int)
-
+        parser.add_argument("--max_episodes_syntheticTrajectory", default=10,help="Number of episodes to roll out synthetic trajectory", type=int)
+        parser.add_argument("--gradient_step", default=1, type=int)
+        parser.add_argument("--sars_batchSize_for_policyUpdate", default=100, type=int)
+        parser.add_argument("--max_step_syntheticTrajectory", default=3, type=int)
 
     def Main_AC_args(self, parser):
         parser.add_argument("--gamma", default=0.99, help="Discounting factor", type=float)

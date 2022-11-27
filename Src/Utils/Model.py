@@ -111,6 +111,24 @@ class model :
         i,j = torch.floor((x-x_left) / (x_right - x_left) * self.grid_size) ,  torch.floor((y-y_down) / (y_up - y_down) * self.grid_size)
         return i.type(torch.long),j.type(torch.long)
 
+    @classmethod
+    def convert_dState_to_random_cState(cls,state,config) :
+        B = state.shape[0]
+        i,j = state[:,0],state[:,1]
+        upper_right , lower_left = \
+            torch.tensor(config.env.observation_space.high,requires_grad=False,device=config.device) , \
+            torch.tensor(config.env.observation_space.low,requires_grad=False,device=config.device)
+        x_left , x_right , y_down , y_up = lower_left[0],upper_right[0] , lower_left[1] , upper_right[1]
+
+        x_lower = i * (x_right-x_left) / config.grid_size
+        x_upper = (i+1) * (x_right-x_left) / config.grid_size
+        y_lower = j * (y_up-y_down) / config.grid_size
+        y_upper = (j+1) * (y_up-y_down) / config.grid_size
+        x_random = torch.rand(B) * (x_upper-x_lower) + x_lower
+        y_random = torch.rand(B) * (y_upper-y_lower) + y_lower
+        return torch.cat((torch.unsqueeze(x_random,dim=-1),torch.unsqueeze(y_random,dim=-1)),dim=1)
+
+
     def divide_into_sars_list(self,s,a,r):
         assert s.size()[:-1] == a.size()[:-1]
         assert s.size()[:-1] == r.size()
@@ -127,8 +145,9 @@ class model :
             for i_sy in range(self.grid_size) :
                 for i_a in range(self.n_action) :
                     for p in range(self.reward_function_reference_lag) :
-                        Y = torch.transpose(torch.tensor([self.reward_buffer[i_sx, i_sy, i_a,p] for p in range(self.reward_function_reference_lag)],requries_gard=False,device=self.config.device),0,1)
-                        self.reward_buffer[i_sx, i_sy, i_a,-1] = torch.matmul(self.pseudo_inv_X, Y)
+                        Y = torch.unsqueeze(torch.tensor([self.reward_table[i_sx, i_sy, i_a,p] for p in range(self.reward_function_reference_lag)],requires_grad=False,device=self.config.device),dim=-1)
+                        coff = torch.matmul(self.pseudo_inv_X, Y)
+                        self.reward_table[i_sx, i_sy, i_a,-1] = coff[0]*(self.reward_function_reference_lag+1)+coff[1]
 
     def optimize(self):
         # if self.realTrajectory_memory.size <= self.config.fourier_k:

@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch import tensor, float32
 from Src.Algorithms.Agent import Agent
-from Src.Utils import Basis, utils
+from Src.Utils import Basis, utils, Model
 from Src.Algorithms import NS_utils
 from Src.Algorithms.Extrapolator import OLS
 
@@ -20,6 +20,7 @@ class ProDyna(Agent):
         #                                      action_dim=self.action_size, atype=self.atype, config=config, dist_dim=1)
 
         self.state_dim = config.env.observation_space.shape[0]
+        self.n_action = config.env.n_actions
 
         self.SARS_discrete_memory = utils.SARS_Buffer(buffer_size=config.buffer_size, state_dim = self.state_dim, action_dim = self.action_size, atype=self.atype, config=config)
 
@@ -36,6 +37,8 @@ class ProDyna(Agent):
         self.counter += 1
         self.gamma_t = 1
 
+    def convert_dState_to_random_cState(self,state):
+        return Model.model.convert_dState_to_random_cState(state,self.config)
 
     def get_action(self, state):
         state = tensor(state, dtype=float32, requires_grad=False, device=self.config.device)
@@ -61,10 +64,22 @@ class ProDyna(Agent):
     def update_Vtable(self,model_transition_prob):
         self.V_discrete.update_v_from_model_and_q(self.Q_discrete.q,model_transition_prob)
 
-    def change_continuous_to_discrete(self,s,a,r):
-        ## divide trajectory (s^{i}_1,...s^{i}_H} into (s,a,r,s') where {i} \in {1,...,B} and B is number of trajectories sampled from the Batch. ##
-        return 0,0,0
+    def update_policy_MBPOstyle(self):
+        if self.SARS_discrete_memory.size <= self.config.reward_function_reference_lag:
+            return
+        ## sample from the sythetic trajectory to update the policy
+        sample_s,sample_a = self.SARS_discrete_memory.sample(self.config.sars_batchSize_for_policyUpdate)
+        sample_s_continuous = self.convert_dState_to_random_cState(sample_s)
+        s_feature = self.state_features.forward(sample_s_continuous)
+        _, pi_all = self.actor.get_prob (s_feature, sample_a) # pi_all : pi(*|s_t) \in R^{4*1} where s_t ~ sample s
 
+        ## compute exp(Q(s_t,*) - V(s_t)) / Z(s_t)
+        exp_q_v = torch.exp(self.Q_discrete.q[sample_s[:,0],sample_s[:,1],:] - torch.unsqueeze(self.V_discrete.v[sample_s[:,0],sample_s[:,1]],dim=-1)*torch.ones(self.n_action))
+        exp_q_v = torch.div(exp_q_v , torch.unsqueeze(torch.sum(exp_q_v,dim=1),dim=-1)*torch.ones(self.n_action))
+
+        ## compute KL divergence between pi(*|s_t) and exp(Q(s_t,*) - V(s_t)) / Z(s_t)
+        loss = utils.kl_divergence(pi_all,exp_q_v)
+        self.step(loss)
 
     def optimize(self):
         if self.syntheticTrajectory_memory.size <= self.config.fourier_k:
@@ -83,9 +98,7 @@ class ProDyna(Agent):
 
             ## dyna-style ## -> levine lecture12 page18
             #[1] observe next state and r to get the transition (s,a,r
-            tuple_sar = self.change_continuous_to_discrete(s,a,r)
-
-
+            # tuple_sar = self.change_continuous_to_discrete(s,a,r)
 
             B, H, D = s.shape
             _, _, A = a.shape
