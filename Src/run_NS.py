@@ -75,17 +75,16 @@ class Solver:
 
             ## rollout based on the model
             for episode2 in range(start_ep,self.config.max_episodes_syntheticTrajectory) :
-                state2 = self.model.realTrajectory_memory.get_random_state()
-                for p in range(self.config.reward_function_predict_lag+1,self.config.reward_function_predict_lag) :
+                state2 = self.model.realTrajectory_memory.get_random_state_in_list()
+                for p in range(self.config.reward_function_reference_lag,self.config.reward_function_reference_lag+self.config.reward_function_predict_lag) :
                     action2,_,_ = self.agent.get_action(state2)
                     new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,p)
-                    self.agent.add(state2,action2,future_reward,new_state2_discrete)
-                    self.agent.agent_update_Qtable(state2,action2,future_reward,new_state2_discrete)
-                    self.agent.agent_update_Vtable_from_Qtable()
+                    state2_discrete = self.model.convert_cState_to_dState(state2)
+                    self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob)
 
-
-            self.agent.update(state, action, extra_info, reward, new_state, done)
-
+            #self.agent.update(state, action, extra_info, reward, new_state, done)
+            ## update the policy ##
+            
 
 
 

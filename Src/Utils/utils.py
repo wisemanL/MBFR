@@ -269,11 +269,11 @@ def clip_norm(params, max_norm=1):
     return norm_param
 
 class SARS_Buffer :
-    def __init__(self, buffer_size,state_dim, action_dim, atype,config, stype=torch.int64):
+    def __init__(self, buffer_size, state_dim,action_dim,atype,config, stype=torch.int64):
         self.s = torch.zeros((buffer_size,state_dim),dtype=stype, requires_grad=False, device=config.device)
         self.a = torch.zeros((buffer_size,action_dim),dtype=atype,requires_grad=False,device=config.device)
         self.r = torch.zeros((buffer_size),dtype=float32,requires_grad=False,device=config.device)
-        self.s_next = torch.zeros((buffer_size,grid_size,grid_size),dtype=stype, requires_grad=False, device=config.device)
+        self.s_next = torch.zeros((buffer_size,state_dim),dtype=stype, requires_grad=False, device=config.device)
 
         self.stype = stype
         self.atype = atype
@@ -295,24 +295,35 @@ class SARS_Buffer :
         self.current_pos += 1
 
 class Q_table :
-    def __init__(self,grid_size,n_action,config):
-        self.q = torch.zeros((grid_size,grid_size,n_action),requires_grid=False, device = config.device)
-        self.alpha = self.config.alpha
+    def __init__(self,config,n_action):
+        self.config = config
+        self.grid_size = config.grid_size
+        self.n_action = n_action
+
+        self.q = torch.zeros((self.grid_size,self.grid_size,self.n_action),requires_grad=False, device = config.device)
+        self.alpha_Q = self.config.alpha_Q
         self.discount_factor = self.config.gamma
 
     def update_q(self,s,a,r,s_next):
         best_next_a = np.argmax(self.q[s_next[0],s_next[1],:])
         td_target = r + self.discount_factor * self.q[s_next[0],s_next[1],best_next_a]
         td_delta = td_target - self.q[s[0],s[1],a]
-        self.q[s[0],s[1],a] += self.alpha * td_delta
+        self.q[s[0],s[1],a] += self.alpha_Q * td_delta
 
 class V_table :
-    def __init__(self,grid_size,config):
-        self.v = torch.zeros((grid_size,grid_size),requires_grid=False, device = config.device)
-        self.alpha = self.config.alpha
-        self.discount_factor = self.config.gamma
+    def __init__(self,config):
+        self.config = config
+        self.grid_size = config.grid_size
+        self.v = torch.zeros((self.grid_size,self.grid_size),requires_grad=False, device = config.device)
 
-    def update_v_from_q(self,q_table,model):
+    def update_v_from_model_and_q(self,q,tran_prob):
+        ## q : grid_size * grid_size * action_num
+        ## tran_prob : grid_size * grid_size * action_num *grid_size * grid_size
+        for i_sx in range(self.grid_size) :
+            for i_sy in range(self.grid_size) :
+                self.v[i_sx,i_sy] = torch.sum(q*tran_prob[:,:,:,i_sx,i_sy]) # sum over all s,a of elementwise multiplication of two matrices.
+
+
 
 
 class TrajectoryBuffer:
@@ -324,6 +335,7 @@ class TrajectoryBuffer:
     def __init__(self, buffer_size, state_dim, action_dim, atype, config, dist_dim=1, stype=float32):
 
         max_horizon = config.env.max_horizon
+        self.max_horizon = max_horizon
 
         self.s = torch.zeros((buffer_size, max_horizon, state_dim), dtype=stype, requires_grad=False, device=config.device)
         self.a = torch.zeros((buffer_size, max_horizon, action_dim), dtype=atype, requires_grad=False, device=config.device)
@@ -383,16 +395,17 @@ class TrajectoryBuffer:
 
         self.timestep_ctr += 1
 
-    def get_random_state(self):
+    def get_random_state_in_list(self):
         # 느낌이 계속 똑같은 숫자를 줄것 같아.
         while True :
-            pos = np.random.choice(self.buffer_pos,1)
-            step = np.random.choice(self.buffer_pos,1)
-            if self.mask[pos][step] == 0 :
+            pos = np.random.choice(self.buffer_pos+1,1)
+            step = np.random.choice(self.max_horizon,1)
+            if self.mask[pos,step] == 0 :
                 pass
             else :
                 break
-        return self.s[pos][step]
+        # return self.s[pos,step]
+        return self.s[pos,step].cpu().numpy()[0].tolist()
 
     def _get(self, idx):
         # ids represent the episode number

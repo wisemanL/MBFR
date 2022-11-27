@@ -81,6 +81,9 @@ class Parser(object):
         parser.add_argument("--grid_size", default=20, type=int)
         parser.add_argument("--reward_function_reference_lag",default=10,type=int)
         parser.add_argument("--reward_function_predict_lag", default=1, type=int)
+        parser.add_argument("--alpha_Q", default=0.99, help="Q update step size", type=float)
+        parser.add_argument("--max_episodes_realTrajectory", default=1000, help="Number of episodes to roll out real trajectory", type=int)
+        parser.add_argument("--max_episodes_syntheticTrajectory", default=100,help="Number of episodes to roll out synthetic trajectory", type=int)
 
 
     def Main_AC_args(self, parser):

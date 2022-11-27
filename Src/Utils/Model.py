@@ -1,5 +1,6 @@
 from Src.Utils import utils , Basis
 from Src.Algorithms import NS_utils
+import numpy as np
 import torch
 torch.set_printoptions(threshold=10_000)
 
@@ -21,9 +22,10 @@ class model :
         self.reward_function_predict_lag = self.config.reward_function_predict_lag
 
         ## divide the 2D reacher into grid_size tables.
-        self.transition_visit = torch.zeros([self.grid_size,self.grid_size,self.n_action,self.grid_size,self.grid_size],requries_gard=False,device=self.config.device)
-        self.transition_prob = torch.zeros([self.grid_size,self.grid_size,self.n_action,self.grid_size,self.grid_size],requries_gard=False,device=self.config.device)
-        self.reward_table = torch.zeros([self.grid_size,self.grid_size,self.n_action,self.reward_function_reference_lag+1],requries_gard=False,device=self.config.device)
+        self.transition_visit = torch.zeros((self.grid_size,self.grid_size,self.n_action,self.grid_size,self.grid_size),requires_grad=False,device=self.config.device)
+        self.transition_prob = torch.zeros((self.grid_size,self.grid_size,self.n_action,self.grid_size,self.grid_size),requires_grad=False,device=self.config.device)
+        # transition_prob: (s_x,s_y,a,s_next_x,s_next_y)
+        self.reward_table = torch.zeros((self.grid_size,self.grid_size,self.n_action,self.reward_function_reference_lag+self.reward_function_predict_lag),requires_grad=False,device=self.config.device)
 
         ## compute pseudo inverse of naive least square method
         self.pseudo_inv_X = self.compute_pseudo_inverse_X()
@@ -39,21 +41,24 @@ class model :
 
     def get_next_state_from_model(self,state,action):
         sx_d , sy_d = self.convert_cState_to_dState(state)
-        after_reshape_next_state_prob = self.transition_prob[sx_d,sy_d,action,:,:].cpu().data.numpy()
+        before_reshape_next_state_prob = self.transition_prob[sx_d,sy_d,action,:,:].cpu().data.numpy()
         after_reshape_next_state_prob = self.transition_prob[sx_d,sy_d,action,:,:].cpu().reshape(-1).data.numpy()
-        action_index = np.random.choice(np.arrage(len(after_reshape_next_state_prob)), p=after_reshape_next_state_prob)
-        (sx_next_d, sy_next_d) = np.unravel_index(np.ravel_multi_index((action_index,), after_reshape_next_state_prob.shape), after_reshape_next_state_prob.shape)
+        if np.sum(after_reshape_next_state_prob) == 1 :
+            action_index = np.random.choice(np.arange(len(after_reshape_next_state_prob)), p=after_reshape_next_state_prob)
+        elif np.sum(after_reshape_next_state_prob) == 0 :
+            action_index = np.random.choice(self.n_action)
+        (sx_next_d, sy_next_d) = np.unravel_index(np.ravel_multi_index((action_index,), after_reshape_next_state_prob.shape), before_reshape_next_state_prob.shape)
         return sx_next_d , sy_next_d
 
 
     def compute_pseudo_inverse_X(self):
-        X = torch.zeros([self.reward_function_reference_lag, 2],requries_gard=False,device=self.config.device)
+        X = torch.zeros((self.reward_function_reference_lag, 2),requires_grad=False,device=self.config.device)
         for i in range(self.reward_function_reference_lag) :
             X[i,0] = i+1
             X[i,1] = 1
 
         X_transpose = torch.transpose(X,0,1)
-        pseudo_inverse = torch.matmul(torch.linalg.inv(torch.matmul(X_transpose,X)),X_tranpose)
+        pseudo_inverse = torch.matmul(torch.linalg.inv(torch.matmul(X_transpose,X)),X_transpose)
         return pseudo_inverse
 
     def update_visit_count(self,s,a,s_next):
@@ -96,11 +101,14 @@ class model :
             self.optimize()
 
     def convert_cState_to_dState(self,state):
-        x_batch,y_batch = state[:,[0]],state[:,[1]]
-        upper_right , lower_left = self.config.env.observation_space.high , self.config.env.observation_space.low
+        # x_batch,y_batch = state[:,[0]],state[:,[1]]
+        x , y = state[0], state[1]
+        upper_right , lower_left = \
+            torch.tensor(self.config.env.observation_space.high,requires_grad=False,device=self.config.device) , \
+            torch.tensor(self.config.env.observation_space.low,requires_grad=False,device=self.config.device)
         x_left , x_right , y_down , y_up = lower_left[0],upper_right[0] , lower_left[1] , upper_right[1]
 
-        i,j = torch.round((x_batch-x_left) / (x_right - x_left) * self.grid_size) ,  torch.round((y_batch-y_down) / (y_up - y_down) * self.grid_size)
+        i,j = torch.floor((x-x_left) / (x_right - x_left) * self.grid_size) ,  torch.floor((y-y_down) / (y_up - y_down) * self.grid_size)
         return i.type(torch.long),j.type(torch.long)
 
     def divide_into_sars_list(self,s,a,r):

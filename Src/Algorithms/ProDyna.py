@@ -18,10 +18,13 @@ class ProDyna(Agent):
                                                                        config=config)
         # self.syntheticTrajectory_memory = utils.TrajectoryBuffer(buffer_size=config.buffer_size, state_dim=self.state_dim,
         #                                      action_dim=self.action_size, atype=self.atype, config=config, dist_dim=1)
-        self.SARS_discrete_memory = utils.SARS_Buffer(buffer_size=config.buffer_size, state_dim=self.state_dim,
-                                             action_dim=self.action_size, atype=self.atype, config=config)
 
-        self.Q_discrete = utils.Q_table(self.grid_size,self.grid_size,self.action_size)
+        self.state_dim = config.env.observation_space.shape[0]
+
+        self.SARS_discrete_memory = utils.SARS_Buffer(buffer_size=config.buffer_size, state_dim = self.state_dim, action_dim = self.action_size, atype=self.atype, config=config)
+
+        self.Q_discrete = utils.Q_table(config=self.config,n_action=self.config.env.n_actions)
+        self.V_discrete = utils.V_table(self.config)
 
         self.modules = [('actor', self.actor), ('state_features', self.state_features)]
         self.counter = 0
@@ -29,7 +32,7 @@ class ProDyna(Agent):
 
     def reset(self):
         super(ProDyna, self).reset()
-        self.syntheticTrajectory_memory.next()
+        # self.SARS_discrete_memory.next()
         self.counter += 1
         self.gamma_t = 1
 
@@ -40,26 +43,28 @@ class ProDyna(Agent):
         action, prob, dist = self.actor.get_action_w_prob_dist(state)
 
         return action, prob, dist
-    def get_action_fromQtable(self,state):
 
 
-    def update(self, s1, a1, prob, r1, s2, done):
+    def update(self, s1_discrete, a1, f_r1, s2_discrete,model_transition_prob):
         # Batch episode history
-        self.SARS_discrete_memory.add(s1, a1, prob, self.gamma_t * r1)
-        self.gamma_t *= self.config.gamma
+        self.SARS_discrete_memory.add(s1_discrete, a1, f_r1, s2_discrete)
+        self.update_Qtable(s1_discrete,a1,f_r1,s2_discrete)
+        self.update_Vtable(model_transition_prob)
+        # self.gamma_t *= self.config.gamma
 
-        if done and self.counter % self.config.delta == 0:
-            self.optimize()
+        # if done and self.counter % self.config.delta == 0:
+        #     self.optimize()
 
-    def agent_update_Vtable_from_Qtable(self):
-
-
-    def agent_update_Qtable(self,s,a,r,s_next):
+    def update_Qtable(self,s,a,r,s_next):
         self.Q_discrete.update_q(s,a,r,s_next)
+
+    def update_Vtable(self,model_transition_prob):
+        self.V_discrete.update_v_from_model_and_q(self.Q_discrete.q,model_transition_prob)
 
     def change_continuous_to_discrete(self,s,a,r):
         ## divide trajectory (s^{i}_1,...s^{i}_H} into (s,a,r,s') where {i} \in {1,...,B} and B is number of trajectories sampled from the Batch. ##
         return 0,0,0
+
 
     def optimize(self):
         if self.syntheticTrajectory_memory.size <= self.config.fourier_k:
@@ -79,6 +84,8 @@ class ProDyna(Agent):
             ## dyna-style ## -> levine lecture12 page18
             #[1] observe next state and r to get the transition (s,a,r
             tuple_sar = self.change_continuous_to_discrete(s,a,r)
+
+
 
             B, H, D = s.shape
             _, _, A = a.shape
