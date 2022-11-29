@@ -63,6 +63,7 @@ def kl_divergence(p,q) :
     q : size of [batch,n_action]
     """
     assert p.shape == q.shape
+    q += 1e-20
 
     return torch.mean(torch.sum(p*torch.log2(torch.div(p,q)),dim=1),dim=0)
 

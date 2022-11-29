@@ -5,6 +5,8 @@ from Src.Algorithms.Agent import Agent
 from Src.Utils import Basis, utils, Model
 from Src.Algorithms import NS_utils
 from Src.Algorithms.Extrapolator import OLS
+import torch.nn.functional as F
+
 
 """
 
@@ -67,6 +69,23 @@ class ProDyna(Agent):
     def update_Vtable(self,model_transition_prob):
         self.V_discrete.update_v_from_model_and_q(self.Q_discrete.q,model_transition_prob)
 
+    def change_inf_to_1(self,prob):
+        indices_list = torch.isinf(prob).nonzero()
+        ## change that speicific inf value to the 1 ##
+        for index in indices_list:
+            # prob[index[0], index[1]] = 1
+            for i in range(self.n_action) :
+                if i == index[1] :
+                    prob[index[0], i] = 1
+                else :
+                    prob[index[0],i] = 0
+            try:
+                assert abs(torch.sum(prob[index[0], :]) - 1) < 1e-3
+            except:
+                raise NotImplementedError
+
+        return prob
+
     def update_policy_MBPOstyle(self):
         if self.SARS_discrete_memory.size <= self.config.reward_function_reference_lag:
             return
@@ -79,20 +98,28 @@ class ProDyna(Agent):
         ## compute exp(Q(s_t,*) - V(s_t)) / Z(s_t)
         q_v = self.Q_discrete.q[sample_s[:,0],sample_s[:,1],:] - torch.unsqueeze(self.V_discrete.v[sample_s[:,0],sample_s[:,1]],dim=-1)*torch.ones(self.n_action)
         ## minus mean to avoid overflow
-        q_v_minusMean = q_v - torch.mean(q_v,dim=1,keepdim=True) * torch.ones(self.n_action)
-        exp_q_v_minusMean = torch.exp(q_v_minusMean)
+        # q_v_minusMean = q_v - torch.mean(q_v,dim=1,keepdim=True) * torch.ones(self.n_action)
+        # exp_q_v_minusMean = torch.exp(q_v_minusMean)
 
-        if torch.sum(torch.isinf(exp_q_v_minusMean)) > 0 :
-            indices = torch.isinf(exp_q_v_minusMean).nonzero()
-        exp_q_v_minusMean = torch.div(exp_q_v_minusMean , torch.unsqueeze(torch.sum(exp_q_v_minusMean,dim=1),dim=-1)*torch.ones(self.n_action))
+        exp_q_v = torch.exp(q_v)
 
-        # exp_q_v = torch.exp(q_v)
-        # exp_q_v = torch.div(exp_q_v , torch.unsqueeze(torch.sum(exp_q_v,dim=1),dim=-1)*torch.ones(self.n_action))
-        #
+        if torch.sum(torch.isinf(exp_q_v)) > 0 :
+            exp_q_v = self.change_inf_to_1(exp_q_v)
 
+        exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
+
+
+        #exp_q_v_minusMean = torch.div(exp_q_v_minusMean , torch.unsqueeze(torch.sum(exp_q_v_minusMean,dim=1),dim=-1)*torch.ones(self.n_action))
+        exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
+
+
+
+        exp_q_v_fromsoftmaxpytorch = F.softmax(q_v,dim=1)
 
         ## compute KL divergence between pi(*|s_t) and exp(Q(s_t,*) - V(s_t)) / Z(s_t)
-        loss = utils.kl_divergence(pi_all,exp_q_v_minusMean)
+        loss = utils.kl_divergence(pi_all,exp_q_v_fromsoftmaxpytorch)
+
+        # loss = F.kl_div(pi_all, exp_q_v)
         self.step(loss)
 
     def optimize(self):

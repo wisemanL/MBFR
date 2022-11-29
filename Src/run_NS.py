@@ -9,6 +9,7 @@ from time import time
 import matplotlib.pyplot as plt
 import os
 
+
 from Src.Utils.Model import  model
 
 
@@ -95,12 +96,10 @@ class Solver:
                 ## update the policy ##
 
                 for g in range(self.config.gradient_step) :
-                    if episode1 == 157 and g ==2 :
+                    if episode1 == 177 :
                         print(g)
                         print(np.linalg.norm(self.agent.get_grads()[0]))
                     self.agent.update_policy_MBPOstyle()
-
-
 
 
                 self.agent.V_discrete.visualize_v(self.config,episode1,save_fig=True)
