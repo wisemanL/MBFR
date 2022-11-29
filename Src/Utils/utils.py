@@ -264,6 +264,7 @@ def remove_directory(dir_path):
     shutil.rmtree(dir_path, ignore_errors=True)
 
 
+
 def clip_norm(params, max_norm=1):
     # return params
     norm_param = []
@@ -295,7 +296,7 @@ class SARS_Buffer :
         return self.valid_length_for_sampling
 
     def add(self,s,a,r,s_next):
-        if self.current_pos > self.buffer_size :
+        if self.current_pos >= self.buffer_size :
             self.current_pos = 0
             self.howManyRefreshBuffer += 1
 
@@ -329,6 +330,32 @@ class Q_table :
         td_delta = td_target - self.q[s[0],s[1],a]
         self.q[s[0],s[1],a] += self.alpha_Q * td_delta
 
+    def modify_matrix_to_visualize_q(self,matrix):
+        ##[1] take transpose
+        matrix = torch.transpose(matrix, 0, 1)
+        ##[2] flip along grid_size/2
+        matrix2 = torch.zeros_like(matrix)
+        for i in range(self.grid_size) :
+            matrix2[i,:] = matrix[self.grid_size-1-i,:]
+        return matrix2
+
+    def visualize_q(self):
+        plt.close()
+        for i in range(self.n_action) :
+            q_map = plt.figure(i)
+            ax = plt.gca()
+            q_modified = self.modify_matrix_to_visualize_q(self.q[:,:,i])
+            im = ax.imshow(q_modified, cmap='cividis')
+            cbar = ax.figure.colorbar(im, ax=ax)
+            cbar.ax.set_ylabel('Q value', rotation=-90, va='bottom')
+            ax.set_xticklabels([p for p in range(self.grid_size)])
+            ax.set_yticklabels([p for p in range(self.grid_size)])
+            ax.set_title("Q value function : action " + str(i))
+            plt.tight_layout()
+        plt.show()
+
+
+
 class V_table :
     def __init__(self,config):
         self.config = config
@@ -341,6 +368,35 @@ class V_table :
         for i_sx in range(self.grid_size) :
             for i_sy in range(self.grid_size) :
                 self.v[i_sx,i_sy] = torch.sum(q*tran_prob[:,:,:,i_sx,i_sy]) # sum over all s,a of elementwise multiplication of two matrices.
+
+    def modify_matrix_to_visualize_v(self,matrix):
+        ##[1] take transpose
+        matrix = torch.transpose(matrix, 0, 1)
+        ##[2] flip along grid_size/2
+        matrix2 = torch.zeros_like(matrix)
+        for i in range(self.grid_size) :
+            matrix2[i,:] = matrix[self.grid_size-1-i,:]
+        return matrix2
+
+
+    def visualize_v(self,config,ep,save_fig = False):
+        value_map = plt.figure(1)
+        ax = plt.gca()
+        v_modified = self.modify_matrix_to_visualize_v(self.v)
+        im = ax.imshow(v_modified, cmap='cividis')
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel('value', rotation=-90, va='bottom')
+        # ax.set_xticklabels([p for p in range(self.grid_size)])
+        # ax.set_yticklabels([p for p in reversed(range(self.grid_size))])
+        # ax.set_xticks([p for p in range(self.grid_size)])
+        # ax.set_yticks([p for p in range(self.grid_size)])
+        ax.set_title("Value function")
+        plt.tight_layout()
+        # plt.show()
+        plt.close('all')
+        if save_fig :
+            value_map.savefig(config.paths['results']+"valuefunction_episode" + str(ep).zfill(4) + ".png")
+
 
 
 

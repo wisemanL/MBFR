@@ -76,15 +76,15 @@ class Parser(object):
         parser.add_argument("--oracle", default=-1000, help="NS Fixed at given episode", type=int)
         parser.add_argument("--speed", default=4, help="Speed of non-stationarity", type=int)
         parser.add_argument("--discrete_change", default=True, help="Speed of non-stationarity", type=self.str2bool)
-        parser.add_argument("--howmanychange", default=7, help="Speed of non-stationarity", type=int)
+        parser.add_argument("--howmanychange", default=0, help="Speed of non-stationarity", type=int)
 
-        parser.add_argument("--grid_size", default=20, type=int)
+        parser.add_argument("--grid_size", default=10, type=int)
         parser.add_argument("--reward_function_reference_lag",default=10,type=int)
         parser.add_argument("--reward_function_predict_lag", default=1, type=int)
         parser.add_argument("--alpha_Q", default=0.99, help="Q update step size", type=float)
         parser.add_argument("--max_episodes_realTrajectory", default=1000, help="Number of episodes to roll out real trajectory", type=int)
         parser.add_argument("--max_episodes_syntheticTrajectory", default=10,help="Number of episodes to roll out synthetic trajectory", type=int)
-        parser.add_argument("--gradient_step", default=1, type=int)
+        parser.add_argument("--gradient_step", default=100, type=int)
         parser.add_argument("--sars_batchSize_for_policyUpdate", default=100, type=int)
         parser.add_argument("--max_step_syntheticTrajectory", default=3, type=int)
 

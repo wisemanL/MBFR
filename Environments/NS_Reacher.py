@@ -120,7 +120,7 @@ class NS_Reacher(object):
 
     def set_rewards(self):
         # All rewards
-        self.G1_reward = 100 #100
+        self.G1_reward = 30 #100
 
     def reset(self):
         """

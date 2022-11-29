@@ -39,17 +39,21 @@ class model :
         sx_d, sy_d = self.convert_cState_to_dState(state)
         return self.reward_table[sx_d,sy_d,action,p]
 
+
     def get_next_state_from_model(self,state,action):
         sx_d , sy_d = self.convert_cState_to_dState(state)
         before_reshape_next_state_prob = self.transition_prob[sx_d,sy_d,action,:,:].cpu().data.numpy()
         after_reshape_next_state_prob = self.transition_prob[sx_d,sy_d,action,:,:].cpu().reshape(-1).data.numpy()
-        if np.sum(after_reshape_next_state_prob) == 1 :
+        if abs(np.sum(after_reshape_next_state_prob)-1) < 1e-3 :
             action_index = np.random.choice(np.arange(len(after_reshape_next_state_prob)), p=after_reshape_next_state_prob)
-        elif np.sum(after_reshape_next_state_prob) == 0 :
+        elif abs(np.sum(after_reshape_next_state_prob) - 0) < 1e-3 :
             action_index = np.random.choice(self.n_action)
-        (sx_next_d, sy_next_d) = np.unravel_index(np.ravel_multi_index((action_index,), after_reshape_next_state_prob.shape), before_reshape_next_state_prob.shape)
-        return sx_next_d , sy_next_d
 
+        sx_next_d_manuel = action_index // before_reshape_next_state_prob.shape[1]
+        sy_next_d_manuel = action_index % before_reshape_next_state_prob.shape[1]
+        (sx_next_d, sy_next_d) = np.unravel_index(np.ravel_multi_index((action_index,), after_reshape_next_state_prob.shape), before_reshape_next_state_prob.shape)
+        assert sx_next_d_manuel == sx_next_d and sy_next_d_manuel == sy_next_d
+        return sx_next_d , sy_next_d
 
     def compute_pseudo_inverse_X(self):
         X = torch.zeros((self.reward_function_reference_lag, 2),requires_grad=False,device=self.config.device)
@@ -61,19 +65,25 @@ class model :
         pseudo_inverse = torch.matmul(torch.linalg.inv(torch.matmul(X_transpose,X)),X_transpose)
         return pseudo_inverse
 
-    def update_visit_count(self,s,a,s_next):
+    def add_visit_count(self,s,a,s_next):
         # convert the continuous s,s_next to discrete value
         (sx_d, sy_d),(sx_next_d, sy_next_d) = self.convert_cState_to_dState(s), self.convert_cState_to_dState(s_next)
         self.transition_visit[sx_d, sy_d, a, sx_next_d, sy_next_d] += 1
 
-    def update_reward_table(self,s,a,r):
+    def add_reward_table(self,s,a,r):
         (sx_d, sy_d) = self.convert_cState_to_dState(s)
         if self.counter < self.reward_function_reference_lag :
             self.reward_table[sx_d,sy_d,a,self.counter] = r
         else :
-            for i in range(self.reward_function_reference_lag) :
-                self.reward_table[sx_d, sy_d, a, i-1] = self.reward_table[sx_d, sy_d, a, i]
-            self.reward_table[sx_d, sy_d, a, self.reward_function_reference_lag] = r
+            self.reward_table[sx_d, sy_d, a, self.reward_function_reference_lag-1] = r
+
+    def move_forward_reward_table(self):
+        # move i+1 reward table to i
+        if self.counter < self.reward_function_reference_lag :
+            return
+        for i in range(1,self.reward_function_reference_lag) :
+            self.reward_table[:, :, :, i-1] = self.reward_table[:, :, :, i]
+
 
     def update_transition_probability(self):
         total_visit = torch.sum(self.transition_visit, dim=[3, 4]).clone().detach()
@@ -92,12 +102,12 @@ class model :
         self.gamma_t *= self.config.gamma
 
         # update the visit count table
-        self.update_visit_count(s1, a1, s2)
+        self.add_visit_count(s1, a1, s2)
 
         # update the reward table
-        self.update_reward_table(s1, a1, r1)
+        self.add_reward_table(s1, a1, r1)
 
-        if done and self.realTrajectory_memory.size >= self.reward_function_reference_lag:
+        if done and self.counter >= self.reward_function_reference_lag:
             self.optimize()
 
     def convert_cState_to_dState(self,state):
@@ -128,6 +138,23 @@ class model :
         y_random = torch.rand(B) * (y_upper-y_lower) + y_lower
         return torch.cat((torch.unsqueeze(x_random,dim=-1),torch.unsqueeze(y_random,dim=-1)),dim=1)
 
+    @classmethod
+    def convert_dState_to_specific_cState(cls,state,config) :
+        B = state.shape[0]
+        i,j = state[:,0],state[:,1]
+        upper_right , lower_left = \
+            torch.tensor(config.env.observation_space.high,requires_grad=False,device=config.device) , \
+            torch.tensor(config.env.observation_space.low,requires_grad=False,device=config.device)
+        x_left , x_right , y_down , y_up = lower_left[0],upper_right[0] , lower_left[1] , upper_right[1]
+
+        x_lower = i * (x_right-x_left) / config.grid_size
+        x_upper = (i+1) * (x_right-x_left) / config.grid_size
+        y_lower = j * (y_up-y_down) / config.grid_size
+        y_upper = (j+1) * (y_up-y_down) / config.grid_size
+        x_random = x_lower
+        y_random = y_lower
+        return torch.cat((torch.unsqueeze(x_random,dim=-1),torch.unsqueeze(y_random,dim=-1)),dim=1)
+
 
     def divide_into_sars_list(self,s,a,r):
         assert s.size()[:-1] == a.size()[:-1]
@@ -150,26 +177,6 @@ class model :
                         self.reward_table[i_sx, i_sy, i_a,-1] = coff[0]*(self.reward_function_reference_lag+1)+coff[1]
 
     def optimize(self):
-        # if self.realTrajectory_memory.size <= self.config.fourier_k:
-        #     # If number of rows is less than number of features (columns), it wont have full column rank.
-        #     return
-        #batch_size = self.realTrajectory_memory.size if self.realTrajectory_memory.size < self.config.batch_size else self.config.batch_size
         self.update_transition_probability()
         self.predict_future_reward()
-
-
-
-        # for iter in range(3) : #self.config.model_optimize):
-            # id, s, a, beta, r, mask = self.realTrajectory_memory.sample(batch_size)
-            # ## [1] divide the samples into the multiple (s,a,r,s')
-            # sars_list = self.divide_into_sars_list(s,a,r)
-            # ## [2] use sars_list to update the model and reward function
-            # for sars_item in sars_list :
-            #     (sx_d,sy_d) , a, r , (sx_next_d,sy_next_d)  = self.convert_cState_to_dState(sars_item[0]), sars_item[1], sars_item[2], self.convert_cState_to_dState(sars_item[3])
-            #     for i in range(batch_size) :
-            #         self.transition_visit[sx_d[i],sy_d[i],a[i],sx_next_d[i],sy_next_d[i]] +=1
-            #         self.reward_table[sx_d[i],sy_d[i],a[i],id[i]] = r
-
-            ## [3] predict the reward function
-
 

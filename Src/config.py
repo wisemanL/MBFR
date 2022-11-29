@@ -97,7 +97,10 @@ class Config(object):
 
         if tag == 'NS_Reco' or tag == 'NS_Reacher':
             obj = utils.dynamic_load(path, tag, load_class=True)
-            changes_after_episodes = int(args.max_episodes/args.howmanychange)
+            if args.howmanychange  == 0 :
+                changes_after_episodes = args.max_episodes
+            else :
+                changes_after_episodes = int(args.max_episodes/args.howmanychange)
             env = obj(speed=args.speed, oracle=args.oracle, discrete_change = args.discrete_change,changes_after_episodes = changes_after_episodes,debug=debug)
             return env, False, env.action_space.dtype == np.float32
 

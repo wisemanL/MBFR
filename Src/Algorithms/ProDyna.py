@@ -40,6 +40,9 @@ class ProDyna(Agent):
     def convert_dState_to_random_cState(self,state):
         return Model.model.convert_dState_to_random_cState(state,self.config)
 
+    def convert_dState_to_specific_cState(self,state):
+        return Model.model.convert_dState_to_specific_cState(state,self.config)
+
     def get_action(self, state):
         state = tensor(state, dtype=float32, requires_grad=False, device=self.config.device)
         state = self.state_features.forward(state.view(1, -1))
@@ -69,16 +72,27 @@ class ProDyna(Agent):
             return
         ## sample from the sythetic trajectory to update the policy
         sample_s,sample_a = self.SARS_discrete_memory.sample(self.config.sars_batchSize_for_policyUpdate)
-        sample_s_continuous = self.convert_dState_to_random_cState(sample_s)
+        sample_s_continuous = self.convert_dState_to_specific_cState(sample_s)
         s_feature = self.state_features.forward(sample_s_continuous)
         _, pi_all = self.actor.get_prob (s_feature, sample_a) # pi_all : pi(*|s_t) \in R^{4*1} where s_t ~ sample s
 
         ## compute exp(Q(s_t,*) - V(s_t)) / Z(s_t)
-        exp_q_v = torch.exp(self.Q_discrete.q[sample_s[:,0],sample_s[:,1],:] - torch.unsqueeze(self.V_discrete.v[sample_s[:,0],sample_s[:,1]],dim=-1)*torch.ones(self.n_action))
-        exp_q_v = torch.div(exp_q_v , torch.unsqueeze(torch.sum(exp_q_v,dim=1),dim=-1)*torch.ones(self.n_action))
+        q_v = self.Q_discrete.q[sample_s[:,0],sample_s[:,1],:] - torch.unsqueeze(self.V_discrete.v[sample_s[:,0],sample_s[:,1]],dim=-1)*torch.ones(self.n_action)
+        ## minus mean to avoid overflow
+        q_v_minusMean = q_v - torch.mean(q_v,dim=1,keepdim=True) * torch.ones(self.n_action)
+        exp_q_v_minusMean = torch.exp(q_v_minusMean)
+
+        if torch.sum(torch.isinf(exp_q_v_minusMean)) > 0 :
+            indices = torch.isinf(exp_q_v_minusMean).nonzero()
+        exp_q_v_minusMean = torch.div(exp_q_v_minusMean , torch.unsqueeze(torch.sum(exp_q_v_minusMean,dim=1),dim=-1)*torch.ones(self.n_action))
+
+        # exp_q_v = torch.exp(q_v)
+        # exp_q_v = torch.div(exp_q_v , torch.unsqueeze(torch.sum(exp_q_v,dim=1),dim=-1)*torch.ones(self.n_action))
+        #
+
 
         ## compute KL divergence between pi(*|s_t) and exp(Q(s_t,*) - V(s_t)) / Z(s_t)
-        loss = utils.kl_divergence(pi_all,exp_q_v)
+        loss = utils.kl_divergence(pi_all,exp_q_v_minusMean)
         self.step(loss)
 
     def optimize(self):

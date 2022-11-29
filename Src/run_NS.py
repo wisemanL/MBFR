@@ -48,20 +48,28 @@ class Solver:
         steps = 0
         t0 = time()
         for episode1 in range(start_ep, self.config.max_episodes_realTrajectory):
+
             # Reset both environment and agent before a new episode
             state = self.env.reset()
             state_list = [state]
+            sars_list = []
             self.agent.reset()
             self.model.reset()
 
             step, total_r = 0, 0
             done = False
 
+            #### move reward table forward ####
+            self.model.move_forward_reward_table()
+            ###################################
+
+            ### rollout real trajectory and save it ####
             while not done:
                 action, extra_info, _ = self.agent.get_action(state) # get_action is stochastic policy. pick random action based on action_prob
                 new_state, reward, done, info = self.env.step(action=action)
+                sars_list.append([state,action,reward,new_state])
                 state_list.append(new_state)
-                self.model.update(state,action,extra_info,reward,new_state,done) #transition prob update , reward prediction
+                self.model.update(state,action,extra_info,reward,new_state,done) # update transition prob update , reward prediction
                 state = new_state
 
                 # Tracking intra-episode progress
@@ -72,22 +80,30 @@ class Solver:
                     break
             steps += step
             rm += total_r
-
+            ############################################
 
             if episode1 >= self.config.reward_function_reference_lag :
+
                 ## rollout based on the model
                 for episode2 in range(start_ep,self.config.max_episodes_syntheticTrajectory) :
                     state2 = self.model.realTrajectory_memory.get_random_state_in_list()
                     for h in range(self.config.max_step_syntheticTrajectory) :
                         action2,_,_ = self.agent.get_action(state2)
-                        new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,-1)
                         state2_discrete = self.model.convert_cState_to_dState(state2)
-                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob)
-
-                #self.agent.update(state, action, extra_info, reward, new_state, done)
+                        new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,-1)
+                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob) # upddate Q,V
                 ## update the policy ##
+
                 for g in range(self.config.gradient_step) :
+                    if episode1 == 157 and g ==2 :
+                        print(g)
+                        print(np.linalg.norm(self.agent.get_grads()[0]))
                     self.agent.update_policy_MBPOstyle()
+
+
+
+
+                self.agent.V_discrete.visualize_v(self.config,episode1,save_fig=True)
 
             if episode1%ckpt == 0 or episode1 == self.config.max_episodes-1:
                 rm_history.append(rm)
@@ -122,7 +138,7 @@ class Solver:
                 ax.add_patch(plt.Rectangle((x1, y1), w, h, fill=True, color='gray'))
                 if self.env.success :
                     fig.suptitle("success")
-                fig.savefig(self.config.paths['results']+"episode" + str(episode1).zfill(4) + ".png")
+                fig.savefig(self.config.paths['results']+"trajectory_episode" + str(episode1).zfill(4) + ".png")
                 plt.close()
 
 

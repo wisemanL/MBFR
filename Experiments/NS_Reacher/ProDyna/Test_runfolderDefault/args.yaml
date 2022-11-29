@@ -21,9 +21,9 @@ fourier_order: -1
 gamma: 0.99
 gauss_std: 1.5
 gpu: 0
-gradient_step: 1
-grid_size: 20
-howmanychange: 7
+gradient_step: 100
+grid_size: 10
+howmanychange: 0
 hyper: default
 importance_clip: 10.0
 inc: 1
@@ -48,4 +48,4 @@ speed: 4
 state_lr: 0.001
 summary: true
 swarm: false
-timestamp: 11|27|15:40:10
+timestamp: 11|29|10:9:18
