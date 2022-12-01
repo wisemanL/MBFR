@@ -55,6 +55,11 @@ class Categorical(Policy):
         x = self.fc1(state)
         return x
 
+    def get_onlyProb(self,state):
+        x = self.forward(state)
+        dist = F.softmax(x, -1)
+        return dist
+
     def get_action_w_prob_dist(self, state, explore=0):
         x = self.forward(state)
         dist = F.softmax(x, -1)

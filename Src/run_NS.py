@@ -8,7 +8,8 @@ from Src.config import Config
 from time import time
 import matplotlib.pyplot as plt
 import os
-
+import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from Src.Utils.Model import  model
 
@@ -44,11 +45,15 @@ class Solver:
         if not os.path.exists(self.config.paths['results']):
             os.mkdir(self.config.paths['results'])
 
+        self.writer = SummaryWriter(self.config.paths['results']+'tensorboard_logdir/')
+
+
+
         ckpt = 1
         rm_history, regret, rm, start_ep, G1_history,gradient_norm_history = [], 0, 0, 0 , [],[]
         steps = 0
         t0 = time()
-        for episode1 in range(start_ep, self.config.max_episodes_realTrajectory):
+        for episode1 in range(start_ep, self.config.max_episodes):
 
             # Reset both environment and agent before a new episode
             state = self.env.reset()
@@ -81,6 +86,8 @@ class Solver:
                     break
             steps += step
             rm += total_r
+            self.writer.add_scalar("reward_episode/train", total_r, episode1)
+            self.writer.add_scalar("cumulative_reward/train", rm, episode1)
             ############################################
 
             if episode1 >= self.config.reward_function_reference_lag :
@@ -94,15 +101,15 @@ class Solver:
                         new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,-1)
                         self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob) # upddate Q,V
                 ## update the policy ##
-
                 for g in range(self.config.gradient_step) :
-                    if episode1 == 177 :
-                        print(g)
-                        print(np.linalg.norm(self.agent.get_grads()[0]))
                     self.agent.update_policy_MBPOstyle()
+                self.writer.add_scalar("KL loss/train",self.agent.KLloss,episode1)
 
 
-                self.agent.V_discrete.visualize_v(self.config,episode1,save_fig=True)
+                ## visualize v and q ##
+                # self.agent.V_discrete.visualize_v(self.config,episode1,save_fig=True)
+                # self.agent.V_discrete.visualize_v_with_action(self.config, episode1,self.agent, save_fig=True)
+                self.agent.V_discrete.visualize_v_3d(self.config,episode1,save_fig=True)
 
             if episode1%ckpt == 0 or episode1 == self.config.max_episodes-1:
                 rm_history.append(rm)
@@ -183,7 +190,8 @@ class Solver:
                             entropy=self.config.entropy_lambda,
                             delta=self.config.delta
                         ))
-
+        self.writer.flush()
+        self.writer.close()
 
 # @profile
 def main(train=True, inc=-1, hyper='default', base=-1):

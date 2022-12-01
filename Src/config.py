@@ -100,7 +100,7 @@ class Config(object):
             if args.howmanychange  == 0 :
                 changes_after_episodes = args.max_episodes
             else :
-                changes_after_episodes = int(args.max_episodes/args.howmanychange)
+                changes_after_episodes = int(args.max_episodes/(args.howmanychange+1))
             env = obj(speed=args.speed, oracle=args.oracle, discrete_change = args.discrete_change,changes_after_episodes = changes_after_episodes,debug=debug)
             return env, False, env.action_space.dtype == np.float32
 

@@ -27,6 +27,7 @@ class NS_Reacher(object):
         self.frequency = self.speed * 0.001
         self.discrete_change = discrete_change
         self.changes_after_episodes = changes_after_episodes
+        self.manually_change_target = True
         self.episode = 0
         self.success = None
 
@@ -252,18 +253,27 @@ class NS_Reacher(object):
 
     def get_reward_states(self):
         if self.oracle >= 0:
-            x = (0.9 * np.sin(self.oracle * self.frequency) + 1) / 2.0
-            y = (0.9 * np.cos(self.oracle * self.frequency) + 1) / 2.0
+            x = (0.9 * np.sin(self.oracle * self.frequency+3.14159/2) + 1) / 2.0
+            y = (0.9 * np.cos(self.oracle * self.frequency+3.14159/2) + 1) / 2.0
         else:
-            x = (0.9 * np.sin(self.episode * self.frequency) + 1) / 2.0
-            y = (0.9 * np.cos(self.episode * self.frequency) + 1) / 2.0
+            x = (0.9 * np.sin(self.episode * self.frequency+3.14159/2) + 1) / 2.0
+            y = (0.9 * np.cos(self.episode * self.frequency+3.14159/2) + 1) / 2.0
 
 
         if self.discrete_change :
-            if self.episode % self.changes_after_episodes == 1 :
+            if not self.manually_change_target :
+                if self.episode % self.changes_after_episodes == 1 :
+                    self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
+                else :
+                    pass
+            else:
+                if self.episode < 200 :
+                    x = (0.9 * np.sin(3.14159 / 2) + 1) / 2.0
+                    y = (0.9 * np.cos(3.14159 / 2) + 1) / 2.0
+                else :
+                    x = (0.9 * np.sin(0) + 1) / 2.0
+                    y = (0.9 * np.cos(0) + 1) / 2.0
                 self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
-            else :
-                pass
         else :
             self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
 

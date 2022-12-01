@@ -21,6 +21,7 @@ class ProDyna(Agent):
         # self.syntheticTrajectory_memory = utils.TrajectoryBuffer(buffer_size=config.buffer_size, state_dim=self.state_dim,
         #                                      action_dim=self.action_size, atype=self.atype, config=config, dist_dim=1)
 
+        self.KLloss = 0
         self.state_dim = config.env.observation_space.shape[0]
         self.n_action = config.env.n_actions
 
@@ -94,7 +95,6 @@ class ProDyna(Agent):
         sample_s_continuous = self.convert_dState_to_specific_cState(sample_s)
         s_feature = self.state_features.forward(sample_s_continuous)
         _, pi_all = self.actor.get_prob (s_feature, sample_a) # pi_all : pi(*|s_t) \in R^{4*1} where s_t ~ sample s
-
         ## compute exp(Q(s_t,*) - V(s_t)) / Z(s_t)
         q_v = self.Q_discrete.q[sample_s[:,0],sample_s[:,1],:] - torch.unsqueeze(self.V_discrete.v[sample_s[:,0],sample_s[:,1]],dim=-1)*torch.ones(self.n_action)
         ## minus mean to avoid overflow
@@ -112,14 +112,13 @@ class ProDyna(Agent):
         #exp_q_v_minusMean = torch.div(exp_q_v_minusMean , torch.unsqueeze(torch.sum(exp_q_v_minusMean,dim=1),dim=-1)*torch.ones(self.n_action))
         exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
 
-
-
         exp_q_v_fromsoftmaxpytorch = F.softmax(q_v,dim=1)
 
         ## compute KL divergence between pi(*|s_t) and exp(Q(s_t,*) - V(s_t)) / Z(s_t)
         loss = utils.kl_divergence(pi_all,exp_q_v_fromsoftmaxpytorch)
+        # loss_kl_pytorch = F.kl_div(torch.log(exp_q_v_fromsoftmaxpytorch),pi_all,reduction="batchmean")
+        self.KLloss = loss
 
-        # loss = F.kl_div(pi_all, exp_q_v)
         self.step(loss)
 
     def optimize(self):

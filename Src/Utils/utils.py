@@ -11,6 +11,8 @@ import importlib
 from time import time
 import sys
 import pickle
+from mpl_toolkits.mplot3d import Axes3D
+
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -63,10 +65,10 @@ def kl_divergence(p,q) :
     q : size of [batch,n_action]
     """
     assert p.shape == q.shape
-    q += 1e-20
+    q += 1e-7
 
-    return torch.mean(torch.sum(p*torch.log2(torch.div(p,q)),dim=1),dim=0)
-
+    return torch.mean(torch.sum(p*torch.log(torch.div(p,q)),dim=1),dim=0)
+    # return torch.sum(torch.mean(p * torch.log2(torch.div(p, q)), dim=0), dim=0)
 
 
 def save_plots(rewards, config, name='rewards'):
@@ -143,8 +145,6 @@ class NeuralNet(nn.Module):
 
     def reset(self):
         return
-
-
 
 
 def stablesoftmax(x):
@@ -360,6 +360,7 @@ class Q_table :
 class V_table :
     def __init__(self,config):
         self.config = config
+        self.motions_env = self.config.env.motions
         self.grid_size = config.grid_size
         self.v = torch.zeros((self.grid_size,self.grid_size),requires_grad=False, device = config.device)
 
@@ -387,16 +388,64 @@ class V_table :
         im = ax.imshow(v_modified, cmap='cividis')
         cbar = ax.figure.colorbar(im, ax=ax)
         cbar.ax.set_ylabel('value', rotation=-90, va='bottom')
-        # ax.set_xticklabels([p for p in range(self.grid_size)])
-        # ax.set_yticklabels([p for p in reversed(range(self.grid_size))])
-        # ax.set_xticks([p for p in range(self.grid_size)])
-        # ax.set_yticks([p for p in range(self.grid_size)])
+        ax.set_xticklabels([p for p in range(self.grid_size)])
+        ax.set_yticklabels([p for p in reversed(range(self.grid_size))])
+        ax.set_xticks([p for p in range(self.grid_size)])
+        ax.set_yticks([p for p in (range(self.grid_size))])
         ax.set_title("Value function")
+        plt.tight_layout()
+        plt.show()
+        plt.close('all')
+
+        if save_fig :
+            value_map.savefig(config.paths['results']+"valuefunction_episode" + str(ep).zfill(4) + ".png")
+
+    def visualize_v_3d(self,config,ep,save_fig = False):
+        x,y = np.arange(0,self.grid_size,1),np.arange(0,self.grid_size,1)
+        x,y = np.meshgrid(x,y)
+        fig = plt.figure()
+        axes = fig.gca(projection='3d',alpha=0.8)
+        axes.plot_surface(x, y, self.v)
+        axes.set_yticklabels([p for p in range(self.grid_size)])
+        axes.set_xticklabels([p for p in reversed(range(self.grid_size))])
+        axes.set_yticks([p for p in range(self.grid_size)])
+        axes.set_xticks([p for p in (range(self.grid_size))])
         plt.tight_layout()
         # plt.show()
         plt.close('all')
         if save_fig :
-            value_map.savefig(config.paths['results']+"valuefunction_episode" + str(ep).zfill(4) + ".png")
+            fig.savefig(config.paths['results']+"3D_valuefunction_episode" + str(ep).zfill(4) + ".png")
+
+
+    def visualize_v_with_action(self,config,ep,agent,save_fig = False):
+        value_map = plt.figure(1)
+        ax = plt.gca()
+        v_modified = self.modify_matrix_to_visualize_v(self.v)
+        im = ax.imshow(v_modified, cmap='cividis')
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel('value', rotation=-90, va='bottom')
+        ax.set_xticks([p for p in range(self.grid_size)])
+        ax.set_yticks([p for p in reversed(range(self.grid_size))])
+        ax.set_xticklabels([p for p in range(self.grid_size)])
+        ax.set_yticklabels([p for p in (range(self.grid_size))])
+
+        ax.set_title("Value function - with action")
+        plt.tight_layout()
+
+        for i in range(self.grid_size) :
+            for j in range(self.grid_size) :
+                discrete_s = torch.tensor([[i,j]])
+                continuous_s = agent.convert_dState_to_specific_cState(discrete_s)
+                s_feature = agent.state_features.forward(continuous_s)
+                action_prob = agent.actor.get_onlyProb(s_feature)
+                index_Actionmax = torch.argmax(action_prob)
+                action = self.motions_env[index_Actionmax]
+                plt.arrow(i,self.grid_size-1-j,0.15*action[0],-0.15*action[1],head_width = 0.13,width = 0.02, facecolor='red', edgecolor='none')
+        # plt.show()
+        plt.close('all')
+
+        if save_fig :
+            value_map.savefig(config.paths['results']+"ActionArrowValuefunction_episode" + str(ep).zfill(4) + ".png")
 
 
 

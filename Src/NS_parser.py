@@ -61,7 +61,7 @@ class Parser(object):
         # parser.add_argument("--env_name", default='NS_Reco', help="Environment to run the code")
         parser.add_argument("--env_name", default='NS_Reacher', help="Environment to run the code")
 
-        parser.add_argument("--max_episodes", default=int(1500), help="maximum number of episodes (75000)", type=int)
+        parser.add_argument("--max_episodes", default=int(2000), help="maximum number of episodes (75000)", type=int)
         parser.add_argument("--max_steps", default=500, help="maximum steps per episode (500)", type=int)
 
     def NS(self, parser):
@@ -74,7 +74,7 @@ class Parser(object):
         parser.add_argument("--entropy_lambda", default=0.1, help="Lagrangian for policy's entropy", type=float)
         parser.add_argument("--importance_clip", default=10.0, help="Clip value for importance ratio", type=float)
         parser.add_argument("--oracle", default=-1000, help="NS Fixed at given episode", type=int)
-        parser.add_argument("--speed", default=4, help="Speed of non-stationarity", type=int)
+        parser.add_argument("--speed", default=0, help="Speed of non-stationarity", type=int)
         parser.add_argument("--discrete_change", default=True, help="Speed of non-stationarity", type=self.str2bool)
         parser.add_argument("--howmanychange", default=0, help="Speed of non-stationarity", type=int)
 
@@ -82,7 +82,7 @@ class Parser(object):
         parser.add_argument("--reward_function_reference_lag",default=10,type=int)
         parser.add_argument("--reward_function_predict_lag", default=1, type=int)
         parser.add_argument("--alpha_Q", default=0.99, help="Q update step size", type=float)
-        parser.add_argument("--max_episodes_realTrajectory", default=1000, help="Number of episodes to roll out real trajectory", type=int)
+        #parser.add_argument("--max_episodes_realTrajectory", default=1000, help="Number of episodes to roll out real trajectory", type=int)
         parser.add_argument("--max_episodes_syntheticTrajectory", default=10,help="Number of episodes to roll out synthetic trajectory", type=int)
         parser.add_argument("--gradient_step", default=100, type=int)
         parser.add_argument("--sars_batchSize_for_policyUpdate", default=100, type=int)
