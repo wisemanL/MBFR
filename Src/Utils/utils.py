@@ -322,8 +322,23 @@ class Q_table :
         self.n_action = n_action
 
         self.q = torch.zeros((self.grid_size,self.grid_size,self.n_action),requires_grad=False, device = config.device)
+        self.q_history = torch.zeros((self.grid_size, self.grid_size, self.n_action,1), requires_grad=False, device=config.device)
+
         self.alpha_Q = self.config.alpha_Q
         self.discount_factor = self.config.gamma
+
+        self.count = 0
+
+    def stack_q(self):
+        if self.count == 0:
+            self.q_history = torch.unsqueeze(self.q, dim=-1)
+        else:
+            self.q_history = torch.cat((self.q_history, torch.unsqueeze(self.q, dim=-1)), -1)
+        self.count += 1
+
+    def save_q_history(self):
+        q_history = self.q_history.numpy()
+        np.save(self.config.paths['results'] + "2_q_history.npy", q_history)
 
     def update_q(self,s,a,r,s_next):
         best_next_a = np.argmax(self.q[s_next[0],s_next[1],:])
@@ -341,7 +356,7 @@ class Q_table :
         return matrix2
 
     def visualize_q(self):
-        plt.close()
+        plt.close("all")
         for i in range(self.n_action) :
             q_map = plt.figure(i)
             ax = plt.gca()
@@ -353,7 +368,7 @@ class Q_table :
             ax.set_yticklabels([p for p in range(self.grid_size)])
             ax.set_title("Q value function : action " + str(i))
             plt.tight_layout()
-        plt.show()
+        # plt.show()
 
 
 
@@ -363,6 +378,17 @@ class V_table :
         self.motions_env = self.config.env.motions
         self.grid_size = config.grid_size
         self.v = torch.zeros((self.grid_size,self.grid_size),requires_grad=False, device = config.device)
+        self.v_history = torch.zeros((self.grid_size,self.grid_size,1),requires_grad=False, device = config.device)
+        self.count = 0
+    def stack_v(self):
+        if self.count == 0 :
+            self.v_history = torch.unsqueeze(self.v,dim=-1)
+        else :
+            self.v_history = torch.cat((self.v_history,torch.unsqueeze(self.v,dim=-1)),-1)
+        self.count+=1
+    def save_v_history(self):
+        v_history = self.v_history.numpy()
+        np.save(self.config.paths['results']+"2_v_history.npy",v_history)
 
     def update_v_from_model_and_q(self,q,tran_prob):
         ## q : grid_size * grid_size * action_num
@@ -394,7 +420,7 @@ class V_table :
         ax.set_yticks([p for p in (range(self.grid_size))])
         ax.set_title("Value function")
         plt.tight_layout()
-        plt.show()
+        # plt.show()
         plt.close('all')
 
         if save_fig :

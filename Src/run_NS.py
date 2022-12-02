@@ -106,11 +106,17 @@ class Solver:
                 self.writer.add_scalar("KL loss/train",self.agent.KLloss,episode1)
 
 
+                ## stack v and q ##
+                self.agent.V_discrete.stack_v()
+                self.agent.Q_discrete.stack_q()
+                ####################
+
+
                 ## visualize v and q ##
-                # self.agent.V_discrete.visualize_v(self.config,episode1,save_fig=True)
+                self.agent.V_discrete.visualize_v(self.config,episode1,save_fig=True)
                 # self.agent.V_discrete.visualize_v_with_action(self.config, episode1,self.agent, save_fig=True)
                 self.agent.V_discrete.visualize_v_3d(self.config,episode1,save_fig=True)
-
+                #######################
             if episode1%ckpt == 0 or episode1 == self.config.max_episodes-1:
                 rm_history.append(rm)
                 G1_history.append(self.env.G1)
@@ -190,6 +196,12 @@ class Solver:
                             entropy=self.config.entropy_lambda,
                             delta=self.config.delta
                         ))
+
+        ## save v_history and q_history ##
+        self.agent.V_discrete.save_v_history()
+        self.agent.Q_discrete.save_q_history()
+        ##################################
+
         self.writer.flush()
         self.writer.close()
 
