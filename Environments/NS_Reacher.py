@@ -121,7 +121,7 @@ class NS_Reacher(object):
 
     def set_rewards(self):
         # All rewards
-        self.G1_reward = 30 #100
+        self.G1_reward = 6 #30 #100
 
     def reset(self):
         """
@@ -267,12 +267,16 @@ class NS_Reacher(object):
                 else :
                     pass
             else:
-                if self.episode < 200 :
+                if self.episode < 500 :
                     x = (0.9 * np.sin(3.14159 / 2) + 1) / 2.0
                     y = (0.9 * np.cos(3.14159 / 2) + 1) / 2.0
-                else :
+                elif 500 <= self.episode < 1500 :
                     x = (0.9 * np.sin(0) + 1) / 2.0
                     y = (0.9 * np.cos(0) + 1) / 2.0
+                else :
+                    x = (0.9 * np.sin(-3.14/2) + 1) / 2.0
+                    y = (0.9 * np.cos(-3.14/2) + 1) / 2.0
+
                 self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
         else :
             self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)

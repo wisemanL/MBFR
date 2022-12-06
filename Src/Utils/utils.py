@@ -390,12 +390,16 @@ class V_table :
         v_history = self.v_history.numpy()
         np.save(self.config.paths['results']+"2_v_history.npy",v_history)
 
-    def update_v_from_model_and_q(self,q,tran_prob):
-        ## q : grid_size * grid_size * action_num
-        ## tran_prob : grid_size * grid_size * action_num *grid_size * grid_size
-        for i_sx in range(self.grid_size) :
-            for i_sy in range(self.grid_size) :
-                self.v[i_sx,i_sy] = torch.sum(q*tran_prob[:,:,:,i_sx,i_sy]) # sum over all s,a of elementwise multiplication of two matrices.
+    def update_v_from_model_and_q(self,q,action_prob):
+
+        ## q : [grid_size , grid_size , action_num]
+        ## action_prob : [grid_size, grid_size, action_num]
+        # for i_sx in range(self.grid_size) :
+        #     for i_sy in range(self.grid_size) :
+        #         self.v[i_sx,i_sy] = torch.sum(q*tran_prob[:,:,:,i_sx,i_sy]) # sum over all s,a of elementwise multiplication of two matrices.
+        self.v = torch.mean(q * action_prob,axis=-1)
+
+
 
     def modify_matrix_to_visualize_v(self,matrix):
         ##[1] take transpose
@@ -406,6 +410,14 @@ class V_table :
             matrix2[i,:] = matrix[self.grid_size-1-i,:]
         return matrix2
 
+    def modify_matrix_to_visualize_v_3d(self, matrix):
+        ##[1] take transpose
+        # matrix = torch.transpose(matrix, 0, 1)
+        ##[2] flip along grid_size/2
+        matrix2 = torch.zeros_like(matrix)
+        for j in range(self.grid_size):
+            matrix2[:, j] = matrix[:,self.grid_size - 1 - j]
+        return matrix2
 
     def visualize_v(self,config,ep,save_fig = False):
         value_map = plt.figure(1)
@@ -431,11 +443,16 @@ class V_table :
         x,y = np.meshgrid(x,y)
         fig = plt.figure()
         axes = fig.gca(projection='3d',alpha=0.8)
-        axes.plot_surface(x, y, self.v)
         axes.set_yticklabels([p for p in range(self.grid_size)])
         axes.set_xticklabels([p for p in reversed(range(self.grid_size))])
         axes.set_yticks([p for p in range(self.grid_size)])
         axes.set_xticks([p for p in (range(self.grid_size))])
+        axes.plot_surface(x, y, self.modify_matrix_to_visualize_v_3d(self.v))
+
+        # modified_z = self.modify_matrix_to_visualize_v_3d(torch.tensor(z))
+        # axes.plot_surface(x, y, modified_z)
+
+
         plt.tight_layout()
         # plt.show()
         plt.close('all')

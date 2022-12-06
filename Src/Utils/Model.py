@@ -166,7 +166,7 @@ class model :
             sars_list.append([s[:,i],a[:,i],r[:,i],s[:,i+1]])
         return sars_list
 
-    def predict_future_reward(self):
+    def predict_future_reward_LS(self):
         ## least square model to forecast ##
         for i_sx in range(self.grid_size) :
             for i_sy in range(self.grid_size) :
@@ -176,7 +176,10 @@ class model :
                         coff = torch.matmul(self.pseudo_inv_X, Y)
                         self.reward_table[i_sx, i_sy, i_a,-1] = coff[0]*(self.reward_function_reference_lag+1)+coff[1]
 
+    def predict_future_reward_average(self):
+        self.reward_table[:,:,:,-1] = torch.mean(self.reward_table[:,:,:,:-1],axis=-1)
+
     def optimize(self):
         self.update_transition_probability()
-        self.predict_future_reward()
+        self.predict_future_reward_average()
 

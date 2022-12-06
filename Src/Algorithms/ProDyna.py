@@ -21,6 +21,9 @@ class ProDyna(Agent):
         # self.syntheticTrajectory_memory = utils.TrajectoryBuffer(buffer_size=config.buffer_size, state_dim=self.state_dim,
         #                                      action_dim=self.action_size, atype=self.atype, config=config, dist_dim=1)
 
+        self.grid_size = config.grid_size
+        self.state_matrix = self._make_state_matrix()
+
         self.KLloss = 0
         self.state_dim = config.env.observation_space.shape[0]
         self.n_action = config.env.n_actions
@@ -53,12 +56,45 @@ class ProDyna(Agent):
 
         return action, prob, dist
 
+    def _make_state_matrix(self):
+        state_matrix = torch.zeros((self.grid_size, self.grid_size, self.state_dim),requires_grad=False, device = self.config.device)
+        for i in range(self.grid_size):
+            for j in range(self.grid_size):
+                continuous_state = self.convert_dState_to_specific_cState(torch.tensor([[i, j]]))
+                continuous_state = continuous_state.squeeze()
+                state_matrix[i, j, :] = continuous_state
 
-    def update(self, s1_discrete, a1, f_r1, s2_discrete,model_transition_prob):
+        return state_matrix
+
+    def get_action_prob_of_all_discrete_states(self):
+        B, H, D = self.state_matrix.shape
+        s_feature = self.state_features.forward(self.state_matrix.view(B*H,-1))
+        dist_all = self.actor.get_onlyProb(s_feature)
+        dist_all = dist_all.view(B,H,-1)
+
+        ###### detach the gradient flow ######
+        dist_all = dist_all.detach()
+        ######################################
+
+        ### check whether view works well ###
+        # action_prob_matrix = torch.zeros((self.grid_size,self.grid_size,self.n_action),requires_grad=False, device = self.config.device)
+        # for i in range(self.grid_size):
+        #     for j in range(self.grid_size):
+        #         discrete_s = torch.tensor([[i, j]])
+        #         continuous_s = self.convert_dState_to_specific_cState(discrete_s)
+        #         s_feature = self.state_features.forward(continuous_s)
+        #         action_prob = torch.squeeze(self.actor.get_onlyProb(s_feature))
+        #         action_prob_matrix[i,j,:] = action_prob
+        #
+        # assert dist_all.all() == action_prob_matrix.all()
+
+        return dist_all
+
+    def update(self, s1_discrete, a1, f_r1, s2_discrete, action_prob):
         # Batch episode history
         self.SARS_discrete_memory.add(s1_discrete, a1, f_r1, s2_discrete)
         self.update_Qtable(s1_discrete,a1,f_r1,s2_discrete)
-        self.update_Vtable(model_transition_prob)
+        self.update_Vtable(action_prob)
         # self.gamma_t *= self.config.gamma
 
         # if done and self.counter % self.config.delta == 0:
@@ -67,8 +103,8 @@ class ProDyna(Agent):
     def update_Qtable(self,s,a,r,s_next):
         self.Q_discrete.update_q(s,a,r,s_next)
 
-    def update_Vtable(self,model_transition_prob):
-        self.V_discrete.update_v_from_model_and_q(self.Q_discrete.q,model_transition_prob)
+    def update_Vtable(self,action_prob):
+        self.V_discrete.update_v_from_model_and_q(self.Q_discrete.q,action_prob)
 
     def change_inf_to_1(self,prob):
         indices_list = torch.isinf(prob).nonzero()
@@ -101,16 +137,16 @@ class ProDyna(Agent):
         # q_v_minusMean = q_v - torch.mean(q_v,dim=1,keepdim=True) * torch.ones(self.n_action)
         # exp_q_v_minusMean = torch.exp(q_v_minusMean)
 
-        exp_q_v = torch.exp(q_v)
+        # exp_q_v = torch.exp(q_v)
+        #
+        # if torch.sum(torch.isinf(exp_q_v)) > 0 :
+        #     exp_q_v = self.change_inf_to_1(exp_q_v)
+        #
+        # exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
 
-        if torch.sum(torch.isinf(exp_q_v)) > 0 :
-            exp_q_v = self.change_inf_to_1(exp_q_v)
 
-        exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
-
-
-        #exp_q_v_minusMean = torch.div(exp_q_v_minusMean , torch.unsqueeze(torch.sum(exp_q_v_minusMean,dim=1),dim=-1)*torch.ones(self.n_action))
-        exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
+        # exp_q_v_minusMean = torch.div(exp_q_v_minusMean , torch.unsqueeze(torch.sum(exp_q_v_minusMean,dim=1),dim=-1)*torch.ones(self.n_action))
+        # exp_q_v = torch.div(exp_q_v, torch.unsqueeze(torch.sum(exp_q_v, dim=1), dim=-1) * torch.ones(self.n_action))
 
         exp_q_v_fromsoftmaxpytorch = F.softmax(q_v,dim=1)
 

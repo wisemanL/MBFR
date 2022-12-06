@@ -47,8 +47,6 @@ class Solver:
 
         self.writer = SummaryWriter(self.config.paths['results']+'tensorboard_logdir/')
 
-
-
         ckpt = 1
         rm_history, regret, rm, start_ep, G1_history,gradient_norm_history = [], 0, 0, 0 , [],[]
         steps = 0
@@ -99,7 +97,8 @@ class Solver:
                         action2,_,_ = self.agent.get_action(state2)
                         state2_discrete = self.model.convert_cState_to_dState(state2)
                         new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,-1)
-                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,self.model.transition_prob) # upddate Q,V
+                        action_prob_allstates = self.agent.get_action_prob_of_all_discrete_states()
+                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,action_prob_allstates) # upddate Q,V
                 ## update the policy ##
                 for g in range(self.config.gradient_step) :
                     self.agent.update_policy_MBPOstyle()
