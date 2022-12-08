@@ -329,6 +329,11 @@ class Q_table :
 
         self.count = 0
 
+
+    def q_table_minus_mean(self):
+        self.q = self.q - torch.mean(self.q)
+
+
     def stack_q(self):
         if self.count == 0:
             self.q_history = torch.unsqueeze(self.q, dim=-1)
@@ -511,6 +516,8 @@ class TrajectoryBuffer:
         self.mask = torch.zeros((buffer_size, max_horizon), dtype=float32, requires_grad=False, device=config.device)
         self.r = torch.zeros((buffer_size, max_horizon), dtype=float32, requires_grad=False, device=config.device)
         self.ids = torch.zeros(buffer_size, dtype=int32, requires_grad=False, device=config.device)
+        self.success = torch.zeros(buffer_size, dtype=float32, requires_grad=False, device=config.device)
+
 
         self.buffer_size = buffer_size
         self.episode_ctr = -1
@@ -563,16 +570,60 @@ class TrajectoryBuffer:
 
         self.timestep_ctr += 1
 
-    def get_random_state_in_list(self):
+    def add_trajectory_success(self):
+        self.success[self.buffer_pos] = torch.tensor(1,dtype=float32)
+
+
+    def get_random_state_in_list(self,within_lag = True):
         # 느낌이 계속 똑같은 숫자를 줄것 같아.
         while True :
-            pos = np.random.choice(self.buffer_pos+1,1)
+            if within_lag :
+                pos = np.random.choice(
+                    np.arange(self.buffer_pos + 1 - self.config.reward_function_reference_lag, self.buffer_pos + 1), 1)
+            else :
+                pos = np.random.choice(self.buffer_pos+1,1)
+
             step = np.random.choice(self.max_horizon,1)
+            # print(pos,step)
             if self.mask[pos,step] == 0 :
                 pass
             else :
                 break
-        # return self.s[pos,step]
+        return self.s[pos,step].cpu().numpy()[0].tolist()
+
+    def get_weighted_random_state_in_list(self):
+        # 느낌이 계속 똑같은 숫자를 줄것 같아.
+        while True :
+            # pos = np.random.choice(self.buffer_pos+1,1)
+            pos_list = np.arange(self.buffer_pos+1-self.config.reward_function_reference_lag, self.buffer_pos + 1)
+            pos_success_list = self.success[pos_list]
+            num_success = torch.sum(pos_success_list)
+            if num_success > 0 :
+                num_failure = len(pos_success_list) - num_success
+
+                prob_success = 1/len(pos_success_list) + num_failure * 1/ len(pos_success_list)**2
+                prob_success = prob_success.item()
+                prob_failure = 1/len(pos_success_list) - num_success * 1/ len(pos_success_list)**2
+                prob_failure = prob_failure.item()
+
+                prob_list=  []
+                for i in pos_success_list :
+                    if i == 1 :
+                        prob_list.append(prob_success)
+                    elif i == 0 :
+                        prob_list.append(prob_failure)
+                    else :
+                        raise ValueError
+                prob_list = prob_list / np.sum(prob_list)
+                pos = np.random.choice(pos_list, 1,p=prob_list)
+            else :
+                pos = np.random.choice(pos_list, 1)
+            step = np.random.choice(self.max_horizon,1)
+            # print(pos,step)
+            if self.mask[pos,step] == 0 :
+                pass
+            else :
+                break
         return self.s[pos,step].cpu().numpy()[0].tolist()
 
     def _get(self, idx):

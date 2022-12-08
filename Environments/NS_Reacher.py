@@ -27,7 +27,7 @@ class NS_Reacher(object):
         self.frequency = self.speed * 0.001
         self.discrete_change = discrete_change
         self.changes_after_episodes = changes_after_episodes
-        self.manually_change_target = True
+        self.manually_change_target = False
         self.episode = 0
         self.success = None
 
@@ -46,7 +46,7 @@ class NS_Reacher(object):
         self.step_reward = -0.5
         self.collision_reward = 0  # -0.05
         self.movement_reward = 0  # 1
-        self.randomness = 0.25
+        self.randomness = 0.1#0.25
 
         # No lidars used
         self.n_lidar = 0
@@ -179,7 +179,7 @@ class NS_Reacher(object):
             if np.random.rand() < self.randomness:
                 # Add noise some percentage of the time
                 # noise = np.random.rand(2)/1.415  # normalize by max L2 of noise
-                noise = np.random.rand()*3.14*24
+                noise = np.random.rand()*3.14*2
                 noise = np.array([np.cos(noise),np.sin(noise)])
                 delta = noise * self.step_unit  # Add noise some percentage of the time
             else:
@@ -274,8 +274,8 @@ class NS_Reacher(object):
                     x = (0.9 * np.sin(0) + 1) / 2.0
                     y = (0.9 * np.cos(0) + 1) / 2.0
                 else :
-                    x = (0.9 * np.sin(-3.14/2) + 1) / 2.0
-                    y = (0.9 * np.cos(-3.14/2) + 1) / 2.0
+                    x = (0.9 * np.sin(3.14) + 1) / 2.0
+                    y = (0.9 * np.cos(3.14) + 1) / 2.0
 
                 self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
         else :

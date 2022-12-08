@@ -74,8 +74,8 @@ class Parser(object):
         parser.add_argument("--entropy_lambda", default=0.1, help="Lagrangian for policy's entropy", type=float)
         parser.add_argument("--importance_clip", default=10.0, help="Clip value for importance ratio", type=float)
         parser.add_argument("--oracle", default=-1000, help="NS Fixed at given episode", type=int)
-        parser.add_argument("--speed", default=0, help="Speed of non-stationarity", type=int)
-        parser.add_argument("--discrete_change", default=True, help="Speed of non-stationarity", type=self.str2bool)
+        parser.add_argument("--speed", default=1, help="Speed of non-stationarity", type=int)
+        parser.add_argument("--discrete_change", default=False, help="Speed of non-stationarity", type=self.str2bool)
         parser.add_argument("--howmanychange", default=0, help="Speed of non-stationarity", type=int)
 
         parser.add_argument("--grid_size", default=10, type=int)

@@ -90,10 +90,12 @@ class ProDyna(Agent):
 
         return dist_all
 
-    def update(self, s1_discrete, a1, f_r1, s2_discrete, action_prob):
+    def update(self, s1_discrete, a1, f_r1, s2_discrete, action_prob,q_table_minus_mean = False):
         # Batch episode history
         self.SARS_discrete_memory.add(s1_discrete, a1, f_r1, s2_discrete)
         self.update_Qtable(s1_discrete,a1,f_r1,s2_discrete)
+        if q_table_minus_mean :
+            self.Q_discrete.q_table_minus_mean()
         self.update_Vtable(action_prob)
         # self.gamma_t *= self.config.gamma
 

@@ -52,7 +52,6 @@ class Solver:
         steps = 0
         t0 = time()
         for episode1 in range(start_ep, self.config.max_episodes):
-
             # Reset both environment and agent before a new episode
             state = self.env.reset()
             state_list = [state]
@@ -66,6 +65,7 @@ class Solver:
             #### move reward table forward ####
             self.model.move_forward_reward_table()
             ###################################
+
 
             ### rollout real trajectory and save it ####
             while not done:
@@ -88,17 +88,21 @@ class Solver:
             self.writer.add_scalar("cumulative_reward/train", rm, episode1)
             ############################################
 
+            ## update if the agent succss ##
+            if self.env.success:
+                self.model.realTrajectory_memory.add_trajectory_success()
+
             if episode1 >= self.config.reward_function_reference_lag :
 
                 ## rollout based on the model
                 for episode2 in range(start_ep,self.config.max_episodes_syntheticTrajectory) :
-                    state2 = self.model.realTrajectory_memory.get_random_state_in_list()
+                    state2 = self.model.realTrajectory_memory.get_random_state_in_list(within_lag=True)
                     for h in range(self.config.max_step_syntheticTrajectory) :
                         action2,_,_ = self.agent.get_action(state2)
                         state2_discrete = self.model.convert_cState_to_dState(state2)
                         new_state2_discrete, future_reward = self.model.get_next_state_from_model(state2,action2), self.model.get_future_reward_from_model(state2,action2,-1)
                         action_prob_allstates = self.agent.get_action_prob_of_all_discrete_states()
-                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,action_prob_allstates) # upddate Q,V
+                        self.agent.update(state2_discrete,action2,future_reward,new_state2_discrete,action_prob_allstates,q_table_minus_mean=False) # upddate Q,V
                 ## update the policy ##
                 for g in range(self.config.gradient_step) :
                     self.agent.update_policy_MBPOstyle()

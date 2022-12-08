@@ -85,6 +85,7 @@ class model :
             self.reward_table[:, :, :, i-1] = self.reward_table[:, :, :, i]
 
 
+
     def update_transition_probability(self):
         total_visit = torch.sum(self.transition_visit, dim=[3, 4]).clone().detach()
         for idx_sx in range(self.transition_visit.size()[0]):
@@ -106,6 +107,7 @@ class model :
 
         # update the reward table
         self.add_reward_table(s1, a1, r1)
+
 
         if done and self.counter >= self.reward_function_reference_lag:
             self.optimize()
@@ -179,7 +181,10 @@ class model :
     def predict_future_reward_average(self):
         self.reward_table[:,:,:,-1] = torch.mean(self.reward_table[:,:,:,:-1],axis=-1)
 
+    def predict_future_reward_AR(self):
+        self.reward_table
+
     def optimize(self):
         self.update_transition_probability()
-        self.predict_future_reward_average()
+        self.predict_future_reward_LS()
 
