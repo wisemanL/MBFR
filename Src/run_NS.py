@@ -1,5 +1,7 @@
 #!~miniconda3/envs/pytorch/bin python
 # from __future__ import print_function
+import sys
+sys.path.insert(0, '../')
 
 import numpy as np
 import Src.Utils.utils as utils
@@ -12,6 +14,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from Src.Utils.Model import  model
+
 
 
 class Solver:
@@ -63,7 +66,7 @@ class Solver:
             done = False
 
             #### move reward table forward ####
-            self.model.move_forward_reward_table()
+            self.model.move_forward_reward_table(episode1)
             ###################################
 
 
@@ -73,7 +76,7 @@ class Solver:
                 new_state, reward, done, info = self.env.step(action=action)
                 sars_list.append([state,action,reward,new_state])
                 state_list.append(new_state)
-                self.model.update(state,action,extra_info,reward,new_state,done) # update transition prob update , reward prediction
+                self.model.update(state,action,extra_info,reward,new_state,done,episode1) # add reward table, update transition prob update , predict future reward
                 state = new_state
 
                 # Tracking intra-episode progress
@@ -93,7 +96,7 @@ class Solver:
                 self.model.realTrajectory_memory.add_trajectory_success()
 
             if episode1 >= self.config.reward_function_reference_lag :
-
+                print("rollout start")
                 ## rollout based on the model
                 for episode2 in range(start_ep,self.config.max_episodes_syntheticTrajectory) :
                     state2 = self.model.realTrajectory_memory.get_random_state_in_list(within_lag=True)

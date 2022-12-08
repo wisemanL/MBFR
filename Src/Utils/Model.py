@@ -70,19 +70,31 @@ class model :
         (sx_d, sy_d),(sx_next_d, sy_next_d) = self.convert_cState_to_dState(s), self.convert_cState_to_dState(s_next)
         self.transition_visit[sx_d, sy_d, a, sx_next_d, sy_next_d] += 1
 
-    def add_reward_table(self,s,a,r):
+    def add_reward_table(self,s,a,r,episode):
         (sx_d, sy_d) = self.convert_cState_to_dState(s)
-        if self.counter < self.reward_function_reference_lag :
-            self.reward_table[sx_d,sy_d,a,self.counter] = r
+        if episode < self.reward_function_reference_lag :
+            self.reward_table[sx_d,sy_d,a,episode] = r
+            print("save reward table index")
+            print(episode)
+            print("=================")
         else :
             self.reward_table[sx_d, sy_d, a, self.reward_function_reference_lag-1] = r
+            print("save the latest reward table index")
+            print(self.reward_function_reference_lag-1)
+            print("=================")
 
-    def move_forward_reward_table(self):
+    def move_forward_reward_table(self,episode1):
         # move i+1 reward table to i
-        if self.counter < self.reward_function_reference_lag :
+        if episode1 <= self.reward_function_reference_lag :
             return
-        for i in range(1,self.reward_function_reference_lag) :
-            self.reward_table[:, :, :, i-1] = self.reward_table[:, :, :, i]
+        else :
+            print("========move reward table =========")
+            for i in range(1,self.reward_function_reference_lag) :
+                print("move "+str(i)+" to "+str(i-1))
+                self.reward_table[:, :, :, i-1] = self.reward_table[:, :, :, i]
+            print("====================================")
+            print("======= reset the index : "+str(self.reward_function_reference_lag-1) + " reward table =======")
+            self.reward_table[:,:,:,self.reward_function_reference_lag-1] = 0
 
 
 
@@ -97,7 +109,7 @@ class model :
                         self.transition_prob[idx_sx, idx_sy, idx_a, :, :] = torch.div(
                             self.transition_visit[idx_sx, idx_sy, idx_a, :, :], total_visit[idx_sx, idx_sy, idx_a])
 
-    def update(self, s1, a1, prob, r1, s2, done):
+    def update(self, s1, a1, prob, r1, s2, done,episode1):
         # save the trajectory to the D_{env}
         self.realTrajectory_memory.add(s1, a1, prob, self.gamma_t * r1)
         self.gamma_t *= self.config.gamma
@@ -106,12 +118,14 @@ class model :
         self.add_visit_count(s1, a1, s2)
 
         # update the reward table
-        self.add_reward_table(s1, a1, r1)
+        self.add_reward_table(s1, a1, r1,episode1)
 
 
-        if done and self.counter >= self.reward_function_reference_lag:
+        if done and episode1 >= self.reward_function_reference_lag:
+            print("==== predict future reward ====")
+            print(self.reward_function_reference_lag)
             self.optimize()
-
+            print("===============================")
     def convert_cState_to_dState(self,state):
         # x_batch,y_batch = state[:,[0]],state[:,[1]]
         x , y = state[0], state[1]
@@ -186,5 +200,5 @@ class model :
 
     def optimize(self):
         self.update_transition_probability()
-        self.predict_future_reward_LS()
+        self.predict_future_reward_average()
 

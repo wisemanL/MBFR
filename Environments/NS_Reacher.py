@@ -46,7 +46,7 @@ class NS_Reacher(object):
         self.step_reward = -0.5
         self.collision_reward = 0  # -0.05
         self.movement_reward = 0  # 1
-        self.randomness = 0.1#0.25
+        self.randomness = 0.25
 
         # No lidars used
         self.n_lidar = 0
@@ -121,7 +121,7 @@ class NS_Reacher(object):
 
     def set_rewards(self):
         # All rewards
-        self.G1_reward = 6 #30 #100
+        self.G1_reward = 30 #6 #30 #100
 
     def reset(self):
         """
