@@ -93,17 +93,21 @@ class ProDyna(Agent):
     def update(self, s1_discrete, a1, f_r1, s2_discrete, action_prob,q_table_minus_mean = False):
         # Batch episode history
         self.SARS_discrete_memory.add(s1_discrete, a1, f_r1, s2_discrete)
-        self.update_Qtable(s1_discrete,a1,f_r1,s2_discrete)
+        howmuchqupdate = self.update_Qtable(s1_discrete,a1,f_r1,s2_discrete)
         if q_table_minus_mean :
             self.Q_discrete.q_table_minus_mean()
         self.update_Vtable(action_prob)
         # self.gamma_t *= self.config.gamma
-
+        return howmuchqupdate
         # if done and self.counter % self.config.delta == 0:
         #     self.optimize()
 
+    def reset_q_table(self):
+        self.Q_discrete.reset_table()
+
     def update_Qtable(self,s,a,r,s_next):
-        self.Q_discrete.update_q(s,a,r,s_next)
+        howmuchqupdate = self.Q_discrete.update_q(s,a,r,s_next)
+        return howmuchqupdate
 
     def update_Vtable(self,action_prob):
         self.V_discrete.update_v_from_model_and_q(self.Q_discrete.q,action_prob)
@@ -155,6 +159,11 @@ class ProDyna(Agent):
         ## compute KL divergence between pi(*|s_t) and exp(Q(s_t,*) - V(s_t)) / Z(s_t)
         loss = utils.kl_divergence(pi_all,exp_q_v_fromsoftmaxpytorch)
         # loss_kl_pytorch = F.kl_div(torch.log(exp_q_v_fromsoftmaxpytorch),pi_all,reduction="batchmean")
+
+        ## add entorpy to make the policy more explore ##
+        loss += loss + self.config.entropy_alpha* utils.entropy(pi_all)
+
+
         self.KLloss = loss
 
         self.step(loss)

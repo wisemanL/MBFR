@@ -18,7 +18,6 @@ class NS_Reacher(object):
                  max_step_length=0.15,
                  max_steps=2):
 
-        n_actions = 4
         self.debug = debug
 
         # NS Specific settings
@@ -46,7 +45,7 @@ class NS_Reacher(object):
         self.step_reward = -0.5
         self.collision_reward = 0  # -0.05
         self.movement_reward = 0  # 1
-        self.randomness = 0.25
+        self.randomness = 0.1
 
         # No lidars used
         self.n_lidar = 0
@@ -121,7 +120,7 @@ class NS_Reacher(object):
 
     def set_rewards(self):
         # All rewards
-        self.G1_reward = 30 #6 #30 #100
+        self.G1_reward = 6 #100
 
     def reset(self):
         """
@@ -150,16 +149,17 @@ class NS_Reacher(object):
         shape = (n_actions, 2)
         motions = np.zeros(shape)
 
-        motions[0] = [0, 1]
-        motions[1] = [1, 0]
-        motions[2] = [0, -1]
-        motions[3] = [-1, 0]
+        ## divide the motions into number of actions ##
+        for idx in range(self.n_actions):
+            motions[idx] = [np.sin(np.pi*2/self.n_actions*idx),np.cos(np.pi*2/self.n_actions*idx)]
+        ###############################################
 
         # Normalize to make maximium distance covered at a step be 1
         max_dist = np.max(np.linalg.norm(motions, ord=2, axis=-1))
         motions /= max_dist
 
         return motions
+
 
     def step(self, action):
         # action = binaryEncoding(action, self.n_actions) # Done by look-up table instead
@@ -263,7 +263,7 @@ class NS_Reacher(object):
         if self.discrete_change :
             if not self.manually_change_target :
                 if self.episode % self.changes_after_episodes == 1 :
-                    self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
+                    self.G1 = (x - self.wall_width/2, y - self.wall_width/2, x + self.wall_width/2, y + self.wall_width/2)
                 else :
                     pass
             else:
@@ -277,9 +277,9 @@ class NS_Reacher(object):
                     x = (0.9 * np.sin(3.14) + 1) / 2.0
                     y = (0.9 * np.cos(3.14) + 1) / 2.0
 
-                self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
+                self.G1 = (x - self.wall_width/2, y - self.wall_width/2, x + self.wall_width/2, y + self.wall_width/2)
         else :
-            self.G1 = (x - 0.025, y - 0.025, x + 0.025, y + 0.025)
+            self.G1 = (x - self.wall_width/2, y - self.wall_width/2, x + self.wall_width/2, y + self.wall_width/2)
 
         self.previousG1 = self.G1
         return {'G1': (self.G1, self.G1_reward)}

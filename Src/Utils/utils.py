@@ -12,7 +12,8 @@ from time import time
 import sys
 import pickle
 from mpl_toolkits.mplot3d import Axes3D
-
+from matplotlib.tri import Triangulation
+import numpy as np
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -59,16 +60,75 @@ class Logger(object):
             fsync(self.log.fileno())
 
 
+class Q_R_drawing :
+    def __init__(self,M,N):
+        self.M = M
+        self.N = N
+        self.values = self.get_values()
+        self.triangul = self.triangulation_for_triheatmap(M, N)
+
+    def create_demo_data(self,M, N):
+        # create some demo data for North, East, South, West
+        # note that each of the 4 arrays can be either 2D (N by M) or 1D (N*M)
+        # M columns and N rows
+        valuesN = np.repeat(np.abs(np.sin(np.arange(N))), M)
+        valuesE = np.arange(M * N) / (N * M)
+        valuesS = np.random.uniform(0, 1, (N, M))
+        valuesW = np.random.uniform(0, 1, (N, M))
+        return [valuesN, valuesE, valuesS, valuesW]
+
+    def triangulation_for_triheatmap(self,M, N):
+        xv, yv = np.meshgrid(np.arange(-0.5, M), np.arange(-0.5, N))  # vertices of the little squares
+        xc, yc = np.meshgrid(np.arange(0, M), np.arange(0, N))  # centers of the little squares
+        x = np.concatenate([xv.ravel(), xc.ravel()])
+        y = np.concatenate([yv.ravel(), yc.ravel()])
+        cstart = (M + 1) * (N + 1)  # indices of the centers
+
+        trianglesN = [(i + j * (M + 1), i + 1 + j * (M + 1), cstart + i + j * M)
+                      for j in range(N) for i in range(M)]
+        trianglesE = [(i + 1 + j * (M + 1), i + 1 + (j + 1) * (M + 1), cstart + i + j * M)
+                      for j in range(N) for i in range(M)]
+        trianglesS = [(i + 1 + (j + 1) * (M + 1), i + (j + 1) * (M + 1), cstart + i + j * M)
+                      for j in range(N) for i in range(M)]
+        trianglesW = [(i + (j + 1) * (M + 1), i + j * (M + 1), cstart + i + j * M)
+                      for j in range(N) for i in range(M)]
+        return [Triangulation(x, y, triangles) for triangles in [trianglesN, trianglesE, trianglesS, trianglesW]]
+
+    def create_heatmap(self):
+        # M, N = 5, 4  # e.g. 5 columns, 4 rows
+        # values = self.create_demo_data(M, N)
+        # triangul = self.triangulation_for_triheatmap(M, N)
+        cmaps = ['Blues', 'Greens', 'Purples', 'Reds']  # ['winter', 'spring', 'summer', 'autumn']
+        norms = [plt.Normalize(-0.5, 1) for _ in range(4)]
+        fig, ax = plt.subplots()
+        imgs = [ax.tripcolor(t, np.ravel(val), cmap=cmap, norm=norm, ec='white')
+                for t, val, cmap, norm in zip(self.triangul, self.values, cmaps, norms)]
+
+        ax.set_xticks(range(self.M))
+        ax.set_yticks(range(self.N))
+        ax.invert_yaxis()
+        ax.margins(x=0, y=0)
+        ax.set_aspect('equal', 'box')  # square cells
+        plt.tight_layout()
+        plt.show()
+
+
 def kl_divergence(p,q) :
     """
     p : size of [bacth,n_action]
     q : size of [batch,n_action]
     """
     assert p.shape == q.shape
-    q += 1e-7
+    q += 1e-10
 
     return torch.mean(torch.sum(p*torch.log(torch.div(p,q)),dim=1),dim=0)
     # return torch.sum(torch.mean(p * torch.log2(torch.div(p, q)), dim=0), dim=0)
+
+def entropy(p) :
+    return torch.mean(torch.sum(p*torch.log(p),dim=1),dim=0)
+    # return torch.sum(torch.mean(p * torch.log2(torch.div(p, q)), dim=0), dim=0)
+
+
 
 
 def save_plots(rewards, config, name='rewards'):
@@ -152,7 +212,6 @@ def stablesoftmax(x):
     shiftx = x - np.max(x)
     exps = np.exp(shiftx)
     return exps / np.sum(exps)
-
 
 
 class Space:
@@ -322,34 +381,40 @@ class Q_table :
         self.n_action = n_action
 
         self.q = torch.zeros((self.grid_size,self.grid_size,self.n_action),requires_grad=False, device = config.device)
-        self.q_history = torch.zeros((self.grid_size, self.grid_size, self.n_action,1), requires_grad=False, device=config.device)
+        self.q_history = torch.zeros((self.grid_size, self.grid_size, self.n_action,self.config.max_episodes), requires_grad=False, device=config.device)
 
         self.alpha_Q = self.config.alpha_Q
         self.discount_factor = self.config.gamma
 
         self.count = 0
 
+    def reset_table(self):
+        self.q = torch.zeros((self.grid_size, self.grid_size, self.n_action), requires_grad=False, device=self. config.device)
 
     def q_table_minus_mean(self):
         self.q = self.q - torch.mean(self.q)
 
-
-    def stack_q(self):
-        if self.count == 0:
-            self.q_history = torch.unsqueeze(self.q, dim=-1)
-        else:
-            self.q_history = torch.cat((self.q_history, torch.unsqueeze(self.q, dim=-1)), -1)
-        self.count += 1
+    def stack_q(self,episode1):
+        # if self.count == 0:
+        #     self.q_history = torch.unsqueeze(self.q, dim=-1)
+        # else:
+        #     self.q_history = torch.cat((self.q_history, torch.unsqueeze(self.q, dim=-1)), -1)
+        # self.count += 1
+        self.q_history[:,:,:,episode1] = self.q
 
     def save_q_history(self):
         q_history = self.q_history.numpy()
         np.save(self.config.paths['results'] + "2_q_history.npy", q_history)
 
     def update_q(self,s,a,r,s_next):
+        current_q = self.q[s[0],s[1],a]
         best_next_a = np.argmax(self.q[s_next[0],s_next[1],:])
+        next_best_q = self.q[s_next[0],s_next[1],best_next_a]
         td_target = r + self.discount_factor * self.q[s_next[0],s_next[1],best_next_a]
         td_delta = td_target - self.q[s[0],s[1],a]
         self.q[s[0],s[1],a] += self.alpha_Q * td_delta
+
+        return [td_delta,td_target,current_q,next_best_q]
 
     def modify_matrix_to_visualize_q(self,matrix):
         ##[1] take transpose
@@ -360,8 +425,7 @@ class Q_table :
             matrix2[i,:] = matrix[self.grid_size-1-i,:]
         return matrix2
 
-    def visualize_q(self):
-        plt.close("all")
+    def visualize_q(self,ep,save_fig=False):
         for i in range(self.n_action) :
             q_map = plt.figure(i)
             ax = plt.gca()
@@ -370,9 +434,15 @@ class Q_table :
             cbar = ax.figure.colorbar(im, ax=ax)
             cbar.ax.set_ylabel('Q value', rotation=-90, va='bottom')
             ax.set_xticklabels([p for p in range(self.grid_size)])
-            ax.set_yticklabels([p for p in range(self.grid_size)])
+            ax.set_yticklabels([p for p in reversed(range(self.grid_size))])
+            ax.set_xticks([p for p in range(self.grid_size)])
+            ax.set_yticks([p for p in (range(self.grid_size))])
             ax.set_title("Q value function : action " + str(i))
             plt.tight_layout()
+
+            if save_fig:
+                q_map.savefig(self.config.paths['results'] + "Qfunction_action"+str(i)+"_episode" + str(ep).zfill(4) + ".png")
+            plt.close("all")
         # plt.show()
 
 
@@ -383,14 +453,15 @@ class V_table :
         self.motions_env = self.config.env.motions
         self.grid_size = config.grid_size
         self.v = torch.zeros((self.grid_size,self.grid_size),requires_grad=False, device = config.device)
-        self.v_history = torch.zeros((self.grid_size,self.grid_size,1),requires_grad=False, device = config.device)
+        self.v_history = torch.zeros((self.grid_size,self.grid_size,self.config.max_episodes),requires_grad=False, device = config.device)
         self.count = 0
-    def stack_v(self):
-        if self.count == 0 :
-            self.v_history = torch.unsqueeze(self.v,dim=-1)
-        else :
-            self.v_history = torch.cat((self.v_history,torch.unsqueeze(self.v,dim=-1)),-1)
-        self.count+=1
+    def stack_v(self,episode1):
+        # if self.count == 0 :
+        #     self.v_history = torch.unsqueeze(self.v,dim=-1)
+        # else :
+        #     self.v_history = torch.cat((self.v_history,torch.unsqueeze(self.v,dim=-1)),-1)
+        # self.count+=1
+        self.v_history[:,:,episode1] = self.v
     def save_v_history(self):
         v_history = self.v_history.numpy()
         np.save(self.config.paths['results']+"2_v_history.npy",v_history)
@@ -402,9 +473,7 @@ class V_table :
         # for i_sx in range(self.grid_size) :
         #     for i_sy in range(self.grid_size) :
         #         self.v[i_sx,i_sy] = torch.sum(q*tran_prob[:,:,:,i_sx,i_sy]) # sum over all s,a of elementwise multiplication of two matrices.
-        self.v = torch.mean(q * action_prob,axis=-1)
-
-
+        self.v = torch.sum(q * action_prob,axis=-1)
 
     def modify_matrix_to_visualize_v(self,matrix):
         ##[1] take transpose
@@ -581,7 +650,7 @@ class TrajectoryBuffer:
                 pos = np.random.choice(
                     np.arange(self.buffer_pos + 1 - self.config.reward_function_reference_lag, self.buffer_pos + 1), 1)
             else :
-                pos = np.random.choice(self.buffer_pos+1,1)
+                pos = np.random.choice(0,self.buffer_pos+1,1)
 
             step = np.random.choice(self.max_horizon,1)
             # print(pos,step)
@@ -590,6 +659,53 @@ class TrajectoryBuffer:
             else :
                 break
         return self.s[pos,step].cpu().numpy()[0].tolist()
+
+    def get_success_random_state_in_list(self, within_lag_episode = True, within_few_latest_step = True):
+        # 느낌이 계속 똑같은 숫자를 줄것 같아.
+        while True :
+            if within_lag_episode :
+                pos_list = np.arange(self.buffer_pos + 1 - self.config.reward_function_reference_lag,
+                                     self.buffer_pos + 1)
+            else :
+                pos_list = np.arange(self.buffer_pos+1)
+
+            pos_success_list = self.success[pos_list]
+            num_success = torch.sum(pos_success_list)
+            if num_success > 0 :
+                num_failure = len(pos_success_list) - num_success
+
+                prob_success = 1/num_success
+                prob_success = prob_success.item()
+                prob_failure = 0
+
+                prob_list=  []
+                for i in pos_success_list :
+                    if i == 1 :
+                        prob_list.append(prob_success)
+                    elif i == 0 :
+                        prob_list.append(prob_failure)
+                    else :
+                        raise ValueError
+                prob_list = prob_list / np.sum(prob_list)
+                pos = np.random.choice(pos_list, 1,p=prob_list)
+            else :
+                pos = np.random.choice(pos_list, 1)
+
+            if num_success > 0 :
+                if within_few_latest_step :
+                    len_trajectory = torch.sum(self.mask[pos]).item()
+                    step = np.random.choice(np.arange(len_trajectory-2,len_trajectory),1)
+                else :
+                    step = np.random.choice(self.max_horizon,1)
+            else :
+                step = np.random.choice(self.max_horizon, 1)
+            # print(pos,step)
+            if self.mask[pos,step] == 0 :
+                pass
+            else :
+                break
+        return self.s[pos,step].cpu().numpy()[0].tolist() , pos, step
+
 
     def get_weighted_random_state_in_list(self):
         # 느낌이 계속 똑같은 숫자를 줄것 같아.

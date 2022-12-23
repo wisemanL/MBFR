@@ -54,14 +54,14 @@ class Parser(object):
     def Env_n_Agent_args(self, parser):
         # parser.add_argument("--algo_name", default='OFPG', help="Learning algorithm")
         # parser.add_argument("--algo_name", default='ONPG', help="Learning algorithm")
-        # parser.add_argument("--algo_name", default='ProOLS', help="Learning algorithm")
+        # parser.add_argument("--algo_name", default='ProWLS', help="Learning algorithm")
         # parser.add_argument("--algo_name", default='ProWLS', help="Learning algorithm")
         parser.add_argument("--algo_name", default='ProDyna', help="Learning algorithm")
         # parser.add_argument("--env_name", default='NS_SimGlucose-v0', help="Environment to run the code")
         # parser.add_argument("--env_name", default='NS_Reco', help="Environment to run the code")
         parser.add_argument("--env_name", default='NS_Reacher', help="Environment to run the code")
 
-        parser.add_argument("--max_episodes", default=int(2000), help="maximum number of episodes (75000)", type=int)
+        parser.add_argument("--max_episodes", default=int(5000), help="maximum number of episodes (75000)", type=int)
         parser.add_argument("--max_steps", default=500, help="maximum steps per episode (500)", type=int)
 
     def NS(self, parser):
@@ -78,7 +78,7 @@ class Parser(object):
         parser.add_argument("--discrete_change", default=False, help="Speed of non-stationarity", type=self.str2bool)
         parser.add_argument("--howmanychange", default=0, help="Speed of non-stationarity", type=int)
 
-        parser.add_argument("--grid_size", default=10, type=int)
+        parser.add_argument("--grid_size", default=15, type=int)
         parser.add_argument("--reward_function_reference_lag",default=10,type=int)
         parser.add_argument("--reward_function_predict_lag", default=1, type=int)
         parser.add_argument("--alpha_Q", default=0.99, help="Q update step size", type=float)
@@ -87,6 +87,7 @@ class Parser(object):
         parser.add_argument("--gradient_step", default=100, type=int)
         parser.add_argument("--sars_batchSize_for_policyUpdate", default=100, type=int)
         parser.add_argument("--max_step_syntheticTrajectory", default=3, type=int)
+        parser.add_argument("--entropy_alpha", default=0, type=float)
 
     def Main_AC_args(self, parser):
         parser.add_argument("--gamma", default=0.99, help="Discounting factor", type=float)

@@ -1,10 +1,28 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
-folder = "algo_ProDyna_ep_5000_speed_0_howManyChange_0"
+import pickle
+folder = "algo_ProDyna_ep_1500_speed_1_howManyChange_0"
 
 v_history = np.load(folder+"/2_v_history.npy")
 q_history = np.load(folder+"/2_q_history.npy")
+
+with open(folder+"/2_sars_Qupdate.pkl", "rb") as fp:   # Unpickling
+	b = pickle.load(fp)
+print("bring data")
+
+for key,value in b.items() :
+	print(key)
+	for l in value :
+		print(l, sep='')
+
+for key in [str(x) for x in range(1000,1100)] :
+	print(key)
+	for l in b[key] :
+		print(l, sep='')
+
+
+
+exit()
 
 ## the grid is divided into two parts...
 # let's take a look at V_history [4:5,4:5] and v_history[4,5]
