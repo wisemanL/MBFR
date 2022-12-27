@@ -161,7 +161,7 @@ class ProDyna(Agent):
         # loss_kl_pytorch = F.kl_div(torch.log(exp_q_v_fromsoftmaxpytorch),pi_all,reduction="batchmean")
 
         ## add entorpy to make the policy more explore ##
-        loss += loss + self.config.entropy_alpha* utils.entropy(pi_all)
+        loss = loss - self.config.entropy_alpha* utils.entropy(pi_all)
 
 
         self.KLloss = loss

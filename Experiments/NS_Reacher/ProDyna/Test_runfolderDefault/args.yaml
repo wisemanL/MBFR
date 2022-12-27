@@ -22,17 +22,17 @@ fourier_order: -1
 gamma: 0.99
 gauss_std: 1.5
 gpu: 0
-gradient_step: 10
-grid_size: 15
+gradient_step: 1
+grid_size: 10
 howmanychange: 0
 hyper: default
 importance_clip: 10.0
 inc: 1
 log_output: term_file
 max_episodes: 5000
-max_episodes_syntheticTrajectory: 30
+max_episodes_syntheticTrajectory: 70
 max_inner: 150
-max_step_syntheticTrajectory: 7
+max_step_syntheticTrajectory: 9
 max_steps: 500
 optim: rmsprop
 oracle: -1000
@@ -40,7 +40,7 @@ raw_basis: true
 restore: false
 reward_function_predict_lag: 1
 reward_function_reference_lag: 10
-sars_batchSize_for_policyUpdate: 100
+sars_batchSize_for_policyUpdate: 500
 save_count: 10
 save_model: true
 seed: 2
@@ -48,4 +48,4 @@ speed: 1
 state_lr: 0.001
 summary: true
 swarm: false
-timestamp: 12|21|14:28:42
+timestamp: 12|27|11:24:45

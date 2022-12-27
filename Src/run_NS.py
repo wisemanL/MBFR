@@ -123,7 +123,7 @@ class Solver:
         self.config.paths['results'] = self.config.paths['results'] + "algo_" + str(
             self.config.algo_name) + "_ep_" + str(self.config.max_episodes) + "_speed_" + str(self.config.speed) +"_gridsize_" + str(self.config.grid_size) \
                                        +"_rolloutEp_" + str(self.config.max_episodes_syntheticTrajectory) + "_rolloutStep_"+str(self.config.max_step_syntheticTrajectory) \
-                                       +"_gradientStep_"+str(self.config.gradient_step)+ "_entropyAlpha"+str(self.config.entropy_alpha)+"/"
+                                       +"_gradientStep_"+str(self.config.gradient_step)+ "_entropyAlpha"+str(self.config.entropy_alpha)+ "_sarsBatchSize_"+str(self.config.sars_batchSize_for_policyUpdate)+"/"
         if not os.path.exists(self.config.paths['results']):
             os.mkdir(self.config.paths['results'])
 
@@ -174,7 +174,7 @@ class Solver:
             if self.env.success:
                 self.model.realTrajectory_memory.add_trajectory_success()
 
-            # if episode1 == 900 :
+            # if episode1 == 3000 :
             #     # reset the Q table
             #     self.agent.reset_q_table()
             #     # reset the policy network
@@ -183,7 +183,7 @@ class Solver:
             #                                         [ 0.1683, -0.0813],
             #                                         [-0.5717,  0.1614]], requires_grad=True)
             #     self.agent.actor.fc1.bias.data = torch.tensor([-0.6260,  0.0929,  0.0470, -0.1555], requires_grad=True)
-            #     print("init!!!")
+            #     print("init!!")
 
             if episode1 >= self.config.reward_function_reference_lag :
                 # print("rollout start")
@@ -313,21 +313,21 @@ class Solver:
                             entropy=self.config.entropy_lambda,
                             delta=self.config.delta
                         ))
+        if False :
+            ## save v_history and q_history ##
+            self.agent.V_discrete.save_v_history()
+            self.agent.Q_discrete.save_q_history()
+            ##################################
 
-        # ## save v_history and q_history ##
-        # self.agent.V_discrete.save_v_history()
-        # self.agent.Q_discrete.save_q_history()
-        # ##################################
-        #
-        #
-        # ## save action prob ##
-        # action_prob_history = self.action_prob_history.numpy()
-        # np.save(self.config.paths['results'] + "2_action_prob_history.npy", action_prob_history)
-        #
-        # ## save Q update value ##
-        # import pickle
-        # with open(self.config.paths['results']+"2_sars_Qupdate.pkl", "wb") as fp:  # Pickling
-        #     pickle.dump(sars_dic, fp)
+
+            ## save action prob ##
+            action_prob_history = self.action_prob_history.numpy()
+            np.save(self.config.paths['results'] + "2_action_prob_history.npy", action_prob_history)
+
+            ## save Q update value ##
+            import pickle
+            with open(self.config.paths['results']+"2_sars_Qupdate.pkl", "wb") as fp:  # Pickling
+                pickle.dump(sars_dic, fp)
 
         self.writer.flush()
         self.writer.close()

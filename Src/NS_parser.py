@@ -85,7 +85,7 @@ class Parser(object):
         #parser.add_argument("--max_episodes_realTrajectory", default=1000, help="Number of episodes to roll out real trajectory", type=int)
         parser.add_argument("--max_episodes_syntheticTrajectory", default=10,help="Number of episodes to roll out synthetic trajectory", type=int)
         parser.add_argument("--gradient_step", default=100, type=int)
-        parser.add_argument("--sars_batchSize_for_policyUpdate", default=100, type=int)
+        parser.add_argument("--sars_batchSize_for_policyUpdate", default=500, type=int)
         parser.add_argument("--max_step_syntheticTrajectory", default=3, type=int)
         parser.add_argument("--entropy_alpha", default=0, type=float)
 
